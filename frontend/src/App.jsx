@@ -481,7 +481,6 @@ const ProductCard = ({ product }) => {
 };
 
 // ── Homepage ──────────────────────────────────────────────────
-const SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
 const SORT_OPTIONS = [
     { value: 'newest', label: 'Newest First' },
     { value: 'price_asc', label: 'Price: Low → High' },
@@ -490,10 +489,15 @@ const SORT_OPTIONS = [
 ];
 
 const HomePage = ({ products, loading, error, category, setCategory, search, setSearch,
-    sort, setSort, page, setPage, pagination, minPrice, setMinPrice, maxPrice, setMaxPrice, sizeFilter, setSizeFilter }) => {
+    sort, setSort, page, setPage, pagination, minPrice, setMinPrice, maxPrice, setMaxPrice, forceRefresh }) => {
     const [localMin, setLocalMin] = useState(minPrice);
     const [localMax, setLocalMax] = useState(maxPrice);
     const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+    useEffect(() => {
+        forceRefresh();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         if (window.innerWidth < 1024) {
@@ -511,7 +515,6 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
     const clearAllFilters = () => {
         setSearch('');
         setCategory('');
-        setSizeFilter('');
         setMinPrice('');
         setMaxPrice('');
         setLocalMin('');
@@ -521,7 +524,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
     return (
         <div>
             {/* Hero */}
-            {!category && !search && !sizeFilter && !minPrice && !maxPrice && page === 1 && (
+            {!category && !search && !minPrice && !maxPrice && page === 1 && (
                 <section className="h-[55vh] bg-gradient-to-br from-gray-900 via-gray-800
                     to-gray-900 flex items-center justify-center text-center px-4 relative overflow-hidden">
                     <div className="relative z-10">
@@ -567,7 +570,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                     </div>
 
                     <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-                        {(search || category || sizeFilter || minPrice || maxPrice) && (
+                        {(search || category || minPrice || maxPrice) && (
                             <button onClick={clearAllFilters} className="text-xs text-red-400 hover:text-red-500 font-bold uppercase tracking-wider transition-colors hidden sm:block">
                                 Clear Filters ✕
                             </button>
@@ -580,7 +583,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                         >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
                             Filters
-                            {(sizeFilter || minPrice || maxPrice) && (
+                            {(minPrice || maxPrice) && (
                                 <span className="w-2 h-2 rounded-full bg-accent-gold"></span>
                             )}
                         </button>
@@ -632,24 +635,6 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                             />
                         </div>
 
-                        {/* Size Filter */}
-                        <div className="mb-8 lg:mb-0">
-                            <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary mb-3">Filter by Size</h3>
-                            <div className="flex flex-wrap gap-2">
-                                {SIZES.map(s => (
-                                    <button
-                                        key={s}
-                                        onClick={() => setSizeFilter(sizeFilter === s ? '' : s)}
-                                        className={`w-10 h-10 border text-sm font-semibold transition-colors ${sizeFilter === s
-                                            ? 'bg-accent-gold border-accent-gold text-primary-bg'
-                                            : 'border-border-color hover:border-accent-gold text-text-primary'}`}
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
                         {/* Price Filter */}
                         <div className="mb-8 lg:mb-0">
                             <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary mb-3">Filter by Price</h3>
@@ -672,7 +657,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                         </div>
 
                         {/* Mobile Clear Filters Button */}
-                        {(search || category || sizeFilter || minPrice || maxPrice) && (
+                        {(search || category || minPrice || maxPrice) && (
                             <div className="lg:hidden mt-8 pt-4 border-t border-border-color">
                                 <button onClick={clearAllFilters} className="w-full py-3 text-sm text-red-400 border border-red-400/40 rounded font-bold uppercase tracking-wider transition-colors hover:bg-red-400/10">
                                     Clear All Filters
@@ -768,9 +753,9 @@ export default function App() {
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState('newest');
     const [page, setPage] = useState(1);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [minPrice, setMinPrice] = useState('');
     const [maxPrice, setMaxPrice] = useState('');
-    const [sizeFilter, setSizeFilter] = useState('');
     const [pagination, setPagination] = useState({ pages: 1, total: 0 });
 
     useEffect(() => {
@@ -798,7 +783,6 @@ export default function App() {
                     ...(search && { search }),
                     ...(minPrice && { minPrice }),
                     ...(maxPrice && { maxPrice }),
-                    ...(sizeFilter && { size: sizeFilter }),
                 });
                 const { data } = await api.get(`/api/products?${params}`);
                 setProducts(data.products);
@@ -809,9 +793,9 @@ export default function App() {
             setLoading(false);
         };
         fetchProducts();
-    }, [page, sort, category, search, minPrice, maxPrice, sizeFilter]);
+    }, [page, sort, category, search, minPrice, maxPrice, refreshTrigger]);
 
-    useEffect(() => { setPage(1); }, [category, search, sort, minPrice, maxPrice, sizeFilter]);
+    useEffect(() => { setPage(1); }, [category, search, sort, minPrice, maxPrice]);
 
     const themeStyles = useMemo(() => `
         :root[data-theme='dark'] {
@@ -913,8 +897,7 @@ export default function App() {
                             setMinPrice={setMinPrice}
                             maxPrice={maxPrice}
                             setMaxPrice={setMaxPrice}
-                            sizeFilter={sizeFilter}
-                            setSizeFilter={setSizeFilter}
+                            setRefreshTrigger={setRefreshTrigger}
                         />
                     </Router>
                 </WishlistProvider>
@@ -924,7 +907,7 @@ export default function App() {
 }
 
 // Separate so we can use useNavigate inside Router context
-function AppRoutes({ theme, toggleTheme, products, loading, error, category, setCategory, search, setSearch, sort, setSort, page, setPage, pagination, minPrice, setMinPrice, maxPrice, setMaxPrice, sizeFilter, setSizeFilter }) {
+function AppRoutes({ theme, toggleTheme, products, loading, error, category, setCategory, search, setSearch, sort, setSort, page, setPage, pagination, minPrice, setMinPrice, maxPrice, setMaxPrice, setRefreshTrigger }) {
 
     return (
         <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--primary-bg)', color: 'var(--text-primary)' }}>
@@ -958,8 +941,7 @@ function AppRoutes({ theme, toggleTheme, products, loading, error, category, set
                                         setMinPrice={setMinPrice}
                                         maxPrice={maxPrice}
                                         setMaxPrice={setMaxPrice}
-                                        sizeFilter={sizeFilter}
-                                        setSizeFilter={setSizeFilter}
+                                        forceRefresh={() => setRefreshTrigger(prev => prev + 1)}
                                     />
                                 } />
                                 <Route path="/cart" element={<CartPage />} />
