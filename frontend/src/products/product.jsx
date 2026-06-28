@@ -70,7 +70,7 @@ const ProductDetailsPage = () => {
         fetchProduct();
     }, [fetchProduct]);
     
-    const cartItem = product ? cartItems.find(x => x._id === product._id && x.size === selectedSize) : null;
+    const cartItem = product ? cartItems.find(x => x._id === product._id) : null;
  
 
     const handleAddToCart = () => {
@@ -226,7 +226,7 @@ const ProductDetailsPage = () => {
                         {cartItem ? (
                             <div className="flex items-center border-2 border-accent-gold rounded h-12 flex-1 min-w-[160px] bg-primary-bg overflow-hidden">
                                 <button
-                                    onClick={() => cartItem.qty === 1 ? removeFromCart(cartItem._id, cartItem.size) : updateQty(cartItem._id, cartItem.size, cartItem.qty - 1)}
+                                    onClick={() => cartItem.qty === 1 ? removeFromCart(cartItem._id) : updateQty(cartItem._id, cartItem.qty - 1)}
                                     className="w-12 h-full text-xl font-bold hover:bg-accent-gold hover:text-primary-bg transition-colors text-accent-gold flex items-center justify-center"
                                 >
                                     −
@@ -235,7 +235,8 @@ const ProductDetailsPage = () => {
                                     {cartItem.qty} Added
                                 </span>
                                 <button
-                                    onClick={() => updateQty(cartItem._id, cartItem.size, cartItem.qty + 1)}
+                                    onClick={() => updateQty(cartItem._id, cartItem.qty + 1)}
+                                    disabled={cartItem.qty >= product.stock}
                                     className="w-12 h-full text-xl font-bold hover:bg-accent-gold hover:text-primary-bg transition-colors text-accent-gold flex items-center justify-center"
                                 >
                                     +

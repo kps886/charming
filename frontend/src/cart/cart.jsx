@@ -72,6 +72,7 @@ const CartPage = () => {
                                     </span>
                                     <button
                                         onClick={() => updateQty(item._id, item.qty + 1)}
+                                        disabled={item.qty >= item.stock}
                                         className="px-3 py-1 hover:bg-primary-bg transition-colors font-bold"
                                     >
                                         +

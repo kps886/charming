@@ -51,6 +51,10 @@ export const CartProvider = ({ children }) => {
         let updated;
 
         if (exist) {
+            if (exist.qty >= product.stock) {
+                toast.error(`Only ${product.stock} units available!`);
+                return;
+            }
             updated = cartItems.map((x) =>
                 x._id === product._id ? { ...x, qty: x.qty + 1 } : x
             );
@@ -72,6 +76,11 @@ export const CartProvider = ({ children }) => {
 
     const updateQty = (id, qty) => {
         if (qty < 1) return;
+        const item = cartItems.find((x) => x._id === id);
+        if (item && qty > item.stock) {
+            toast.error(`Only ${item.stock} units available!`);
+            return;
+        }
         const updated = cartItems.map((x) => (x._id === id ? { ...x, qty } : x));
         
         setCartItems(updated);
