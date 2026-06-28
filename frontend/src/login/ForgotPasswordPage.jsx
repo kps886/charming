@@ -26,16 +26,6 @@ const ForgotPasswordPage = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden bg-primary-bg">
-            
-            {/* Ambient Glowing Orbs */}
-            <div 
-                className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full blur-[120px] opacity-20 pointer-events-none"
-                style={{ backgroundColor: 'var(--accent-gold)' }}
-            />
-            <div 
-                className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full blur-[150px] opacity-10 pointer-events-none"
-                style={{ backgroundColor: 'var(--accent-gold)' }}
-            />
 
             <div className="w-full max-w-md relative z-10">
                 <div className="text-center mb-8">

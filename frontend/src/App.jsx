@@ -408,18 +408,21 @@ const ProductCard = ({ product }) => {
     const avgRating = product.avgRating || 0;
 
     return (
-        <div className="bg-secondary-bg border border-border-color group relative
-            overflow-hidden text-center transition-shadow duration-300 hover:shadow-xl">
+        <div className="bg-secondary-bg/80 backdrop-blur-md border border-border-color rounded-2xl group relative
+            overflow-hidden text-center transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
+
+            {/* Premium Top Glow */}
+            <div className="absolute top-0 left-0 w-full h-1 z-20" style={{ background: 'linear-gradient(90deg, transparent, var(--accent-gold), transparent)', opacity: 0.5 }} />
 
             {product.tags?.includes('New Arrival') && (
-                <div className="absolute top-3 left-3 bg-accent-gold text-primary-bg
-                    px-2 py-0.5 text-xs font-bold z-10 uppercase">
+                <div className="absolute top-4 left-3 bg-accent-gold text-primary-bg
+                    px-2 py-0.5 text-xs font-bold z-10 uppercase rounded shadow-sm">
                     New
                 </div>
             )}
             {product.stock === 0 && (
-                <div className="absolute top-3 right-10 bg-red-500 text-white
-                    px-2 py-0.5 text-xs font-bold z-10 uppercase">
+                <div className="absolute top-4 right-12 bg-red-500 text-white
+                    px-2 py-0.5 text-xs font-bold z-10 uppercase rounded shadow-sm">
                     Out
                 </div>
             )}
@@ -427,7 +430,7 @@ const ProductCard = ({ product }) => {
             {/* Wishlist heart */}
             <button
                 onClick={handleWishlist}
-                className={`absolute top-2 right-2 z-10 w-8 h-8 rounded-full flex
+                className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex
                     items-center justify-center transition-all duration-200 shadow-md
                     ${wishlisted
                         ? 'bg-red-500 text-white'
@@ -453,20 +456,19 @@ const ProductCard = ({ product }) => {
                 </Link>
             </div>
 
-            <div className="p-3">
+            <div className="p-4">
                 <Link to={`/product/${product._id}`} onClick={saveScrollPosition}>
-                    <h3 className="text-sm font-serif hover:text-accent-gold transition-colors
-                        line-clamp-2 mb-1"
-                        >
+                    <h3 className="text-base font-serif hover:text-accent-gold transition-colors
+                        line-clamp-2 mb-1">
                         {product.name}
                     </h3>
                 </Link>
 
                 {/* Star rating */}
                 {product.reviewCount > 0 && (
-                    <div className="flex items-center justify-center gap-1 mb-1">
+                    <div className="flex items-center justify-center gap-1 mb-2">
                         {[1, 2, 3, 4, 5].map(n => (
-                            <svg key={n} width="10" height="10" viewBox="0 0 24 24"
+                            <svg key={n} width="12" height="12" viewBox="0 0 24 24"
                                 fill={n <= Math.round(avgRating) ? '#D4AF37' : 'none'}
                                 stroke="#D4AF37" strokeWidth="2">
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14
@@ -474,13 +476,13 @@ const ProductCard = ({ product }) => {
                                     8.91 8.26 12 2"/>
                             </svg>
                         ))}
-                        <span className="text-xs text-text-secondary">
+                        <span className="text-xs text-text-secondary ml-1">
                             ({product.reviewCount})
                         </span>
                     </div>
                 )}
 
-                <p className="font-bold text-accent-gold text-sm">
+                <p className="font-bold text-accent-gold text-base mt-2">
                     ₹{product.price.toLocaleString('en-IN')}
                 </p>
             </div>
@@ -934,121 +936,125 @@ export default function App() {
 function AppRoutes({ theme, toggleTheme, products, loading, error, category, setCategory, search, setSearch, sort, setSort, page, setPage, pagination, minPrice, setMinPrice, maxPrice, setMaxPrice, setRefreshTrigger }) {
 
     return (
-        <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--primary-bg)', color: 'var(--text-primary)' }}>
-            <Routes>
-                {/* Login page — full screen, no header */}
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-                <Route path="/verify-email" element={<OTPVerificationPage />} />
+        <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ backgroundColor: 'var(--primary-bg)', color: 'var(--text-primary)' }}>
+            <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full blur-[120px] opacity-20 pointer-events-none z-0" style={{ backgroundColor: 'var(--accent-gold)' }} />
+            <div className="fixed bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full blur-[150px] opacity-10 pointer-events-none z-0" style={{ backgroundColor: 'var(--accent-gold)' }} />
+            <div className="relative z-10 flex flex-col min-h-screen">
+                <Routes>
+                    {/* Login page — full screen, no header */}
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                    <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+                    <Route path="/verify-email" element={<OTPVerificationPage />} />
 
-                {/* All other routes — with header */}
-                <Route path="/*" element={
-                    <>
-                        <Header theme={theme} toggleTheme={toggleTheme} category={category} setCategory={setCategory} />
-                        <main className="flex-grow">
-                            <Routes>
-                                <Route path="/" element={
-                                    <HomePage
-                                        products={products}
-                                        loading={loading}
-                                        error={error}
-                                        category={category}
-                                        setCategory={setCategory}
-                                        search={search}
-                                        setSearch={setSearch}
-                                        sort={sort}
-                                        setSort={setSort}
-                                        page={page}
-                                        setPage={setPage}
-                                        pagination={pagination}
-                                        minPrice={minPrice}
-                                        setMinPrice={setMinPrice}
-                                        maxPrice={maxPrice}
-                                        setMaxPrice={setMaxPrice}
-                                        forceRefresh={() => setRefreshTrigger(prev => prev + 1)}
-                                    />
-                                } />
-                                <Route path="/cart" element={<CartPage />} />
-                                <Route path="/wishlist" element={
-                                    <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
-                                        <WishlistPage />
-                                    </ProtectedRoute>
-                                } />
-                                <Route path="/product/:id" element={<ProductDetailsPage />} />
+                    {/* All other routes — with header */}
+                    <Route path="/*" element={
+                        <>
+                            <Header theme={theme} toggleTheme={toggleTheme} category={category} setCategory={setCategory} />
+                            <main className="flex-grow">
+                                <Routes>
+                                    <Route path="/" element={
+                                        <HomePage
+                                            products={products}
+                                            loading={loading}
+                                            error={error}
+                                            category={category}
+                                            setCategory={setCategory}
+                                            search={search}
+                                            setSearch={setSearch}
+                                            sort={sort}
+                                            setSort={setSort}
+                                            page={page}
+                                            setPage={setPage}
+                                            pagination={pagination}
+                                            minPrice={minPrice}
+                                            setMinPrice={setMinPrice}
+                                            maxPrice={maxPrice}
+                                            setMaxPrice={setMaxPrice}
+                                            forceRefresh={() => setRefreshTrigger(prev => prev + 1)}
+                                        />
+                                    } />
+                                    <Route path="/cart" element={<CartPage />} />
+                                    <Route path="/wishlist" element={
+                                        <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
+                                            <WishlistPage />
+                                        </ProtectedRoute>
+                                    } />
+                                    <Route path="/product/:id" element={<ProductDetailsPage />} />
 
-                                {/* Admin only */}
-                                <Route path="/admin" element={
-                                    <ProtectedRoute allowedRoles={['admin']}>
-                                        <AdminDashboard />
-                                    </ProtectedRoute>
-                                } />
+                                    {/* Admin only */}
+                                    <Route path="/admin" element={
+                                        <ProtectedRoute allowedRoles={['admin']}>
+                                            <AdminDashboard />
+                                        </ProtectedRoute>
+                                    } />
 
-                                {/* Shopkeeper (admin can also access) */}
-                                <Route path="/shopkeeper" element={
-                                    <ProtectedRoute allowedRoles={['admin', 'shopkeeper']}>
-                                        <ShopkeeperDashboard />
-                                    </ProtectedRoute>
-                                } />
+                                    {/* Shopkeeper (admin can also access) */}
+                                    <Route path="/shopkeeper" element={
+                                        <ProtectedRoute allowedRoles={['admin', 'shopkeeper']}>
+                                            <ShopkeeperDashboard />
+                                        </ProtectedRoute>
+                                    } />
 
-                                {/* Employee (admin + shopkeeper can also access) */}
-                                <Route path="/employee" element={
-                                    <ProtectedRoute allowedRoles={['admin', 'shopkeeper', 'employee']}>
-                                        <EmployeeDashboard />
-                                    </ProtectedRoute>
-                                } />
+                                    {/* Employee (admin + shopkeeper can also access) */}
+                                    <Route path="/employee" element={
+                                        <ProtectedRoute allowedRoles={['admin', 'shopkeeper', 'employee']}>
+                                            <EmployeeDashboard />
+                                        </ProtectedRoute>
+                                    } />
 
-                                <Route path="/checkout" element={
-                                    <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
-                                        <CheckoutPage />
-                                    </ProtectedRoute>
-                                } />
+                                    <Route path="/checkout" element={
+                                        <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
+                                            <CheckoutPage />
+                                        </ProtectedRoute>
+                                    } />
 
-                                <Route path="/order-success/:id" element={
-                                    <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
-                                        <OrderSuccessPage />
-                                    </ProtectedRoute>
-                                } />
+                                    <Route path="/order-success/:id" element={
+                                        <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
+                                            <OrderSuccessPage />
+                                        </ProtectedRoute>
+                                    } />
 
-                                <Route path="/my-orders" element={
-                                    <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
-                                        <MyOrdersPage />
-                                    </ProtectedRoute>
-                                } />
+                                    <Route path="/my-orders" element={
+                                        <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
+                                            <MyOrdersPage />
+                                        </ProtectedRoute>
+                                    } />
 
-                                <Route path="/profile" element={
-                                    <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
-                                        <ProfilePage />
-                                    </ProtectedRoute>
-                                } />
-                                <Route path="/terms" element={<TermsOfService />} />
-                                <Route path="/privacy" element={<PrivacyPolicy />} />
-                                <Route path="/shipping" element={<ShippingPolicy />} />
-                                <Route path="/refund" element={<RefundPolicy />} />
+                                    <Route path="/profile" element={
+                                        <ProtectedRoute allowedRoles={['user', 'admin', 'shopkeeper', 'employee']}>
+                                            <ProfilePage />
+                                        </ProtectedRoute>
+                                    } />
+                                    <Route path="/terms" element={<TermsOfService />} />
+                                    <Route path="/privacy" element={<PrivacyPolicy />} />
+                                    <Route path="/shipping" element={<ShippingPolicy />} />
+                                    <Route path="/refund" element={<RefundPolicy />} />
 
-                                {/* Catch-all */}
-                                <Route path="*" element={<Navigate to="/" replace />} />
-                            </Routes>
-                        </main>
-                        <footer style={{ backgroundColor: 'var(--secondary-bg)', borderTop: '1px solid var(--border-color)' }} className="py-8 px-4 mt-auto">
-                            <div className="max-w-4xl mx-auto flex flex-col items-center gap-6">
-                                {/* Top Row: Legal Links */}
-                                <div className="flex flex-wrap justify-center gap-4 sm:gap-8 text-sm font-semibold">
-                                    <Link to="/terms" className="text-text-secondary hover:text-accent-gold transition-colors">Terms of Service</Link>
-                                    <Link to="/privacy" className="text-text-secondary hover:text-accent-gold transition-colors">Privacy Policy</Link>
-                                    <Link to="/shipping" className="text-text-secondary hover:text-accent-gold transition-colors">Shipping Policy</Link>
-                                    <Link to="/refund" className="text-text-secondary hover:text-accent-gold transition-colors">Cancellation & Refund</Link>
+                                    {/* Catch-all */}
+                                    <Route path="*" element={<Navigate to="/" replace />} />
+                                </Routes>
+                            </main>
+                            <footer style={{ backgroundColor: 'var(--secondary-bg)', borderTop: '1px solid var(--border-color)' }} className="py-8 px-4 mt-auto">
+                                <div className="max-w-4xl mx-auto flex flex-col items-center gap-6">
+                                    {/* Top Row: Legal Links */}
+                                    <div className="flex flex-wrap justify-center gap-4 sm:gap-8 text-sm font-semibold">
+                                        <Link to="/terms" className="text-text-secondary hover:text-accent-gold transition-colors">Terms of Service</Link>
+                                        <Link to="/privacy" className="text-text-secondary hover:text-accent-gold transition-colors">Privacy Policy</Link>
+                                        <Link to="/shipping" className="text-text-secondary hover:text-accent-gold transition-colors">Shipping Policy</Link>
+                                        <Link to="/refund" className="text-text-secondary hover:text-accent-gold transition-colors">Cancellation & Refund</Link>
+                                    </div>
+                                    
+                                    {/* Bottom Row: Copyright */}
+                                    <p className="text-text-secondary text-sm text-center">
+                                        &copy; {new Date().getFullYear()} Charming. All Rights Reserved.
+                                    </p>
                                 </div>
-                                
-                                {/* Bottom Row: Copyright */}
-                                <p className="text-text-secondary text-sm text-center">
-                                    &copy; {new Date().getFullYear()} Charming. All Rights Reserved.
-                                </p>
-                            </div>
-                        </footer>
-                    </>
-                } />
-            </Routes>
+                            </footer>
+                        </>
+                    } />
+                </Routes>
+            </div>
         </div>
     );
 }

@@ -3,10 +3,26 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import toast from 'react-hot-toast';
 
+const EyeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+);
+
+const EyeOffIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+    </svg>
+);
+
 const LoginPage = () => {
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
     const [rememberMe, setRememberMe] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const { login, register, loading, isLoggedIn, user } = useAuth();
     const navigate = useNavigate();
@@ -54,7 +70,7 @@ const LoginPage = () => {
                 navigate(getDashboardPath(result.role), { replace: true });
             }
         }
-        else{
+        else {
             if (result.requiresVerification) {
                 toast.error('Please verify your email before logging in.');
                 navigate('/verify-email', { state: { email: result.email } });
@@ -72,16 +88,6 @@ const LoginPage = () => {
     return (
         // 1. Dynamic Background Container
         <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden bg-primary-bg">
-            
-            {/* 2. Ambient Glowing Orbs (Adapts to theme beautifully) */}
-            <div 
-                className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full blur-[120px] opacity-20 pointer-events-none"
-                style={{ backgroundColor: 'var(--accent-gold)' }}
-            />
-            <div 
-                className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full blur-[150px] opacity-10 pointer-events-none"
-                style={{ backgroundColor: 'var(--accent-gold)' }}
-            />
 
             <div className="w-full max-w-md relative z-10">
                 {/* Logo Area */}
@@ -96,7 +102,7 @@ const LoginPage = () => {
 
                 {/* 3. Dynamic Card */}
                 <div className="bg-secondary-bg border border-border-color p-8 rounded-2xl shadow-2xl relative overflow-hidden">
-                    
+
                     {/* Subtle inner glow for the card */}
                     <div className="absolute top-0 left-0 w-full h-1" style={{ background: 'linear-gradient(90deg, transparent, var(--accent-gold), transparent)', opacity: 0.5 }} />
 
@@ -145,7 +151,7 @@ const LoginPage = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 name="password"
                                 required
                                 value={formData.password}
@@ -153,23 +159,36 @@ const LoginPage = () => {
                                 placeholder="Password"
                                 className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-secondary hover:text-accent-gold transition-colors focus:outline-none"
+                            >
+                                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                            </button>
                         </div>
 
                         {!isLogin && (
                             <div className="relative">
-                                {/* Lock Icon */}
                                 <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                 </svg>
                                 <input
-                                    type="password"
+                                    type={showConfirmPassword ? "text" : "password"}
                                     name="confirmPassword"
                                     required={!isLogin}
                                     value={formData.confirmPassword}
                                     onChange={handleChange}
                                     placeholder="Confirm Password"
-                                    className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
+                                    className="w-full pl-12 pr-12 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-text-secondary hover:text-accent-gold transition-colors focus:outline-none"
+                                >
+                                    {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+                                </button>
                             </div>
                         )}
 
@@ -185,7 +204,7 @@ const LoginPage = () => {
                                     />
                                     <span>Remember me</span>
                                 </label>
-                                
+
                                 <Link to="/forgot-password" className="text-accent-gold hover:underline transition-colors">
                                     Forgot password?
                                 </Link>
