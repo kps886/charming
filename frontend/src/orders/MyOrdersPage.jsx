@@ -97,7 +97,7 @@ const MyOrdersPage = () => {
     return (
         <div className="container mx-auto py-10 px-4 max-w-4xl">
             <h1 className="text-3xl font-serif mb-8"
-                style={{ fontFamily: "'Playfair Display', serif" }}>
+                >
                 My Orders
             </h1>
 

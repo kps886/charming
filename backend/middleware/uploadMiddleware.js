@@ -1,6 +1,6 @@
-import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import multer from 'multer';
+import { v2 as cloudinary } from 'cloudinary';
+import pkg from 'multer-storage-cloudinary';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -11,7 +11,9 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const storage = new CloudinaryStorage({
+const StorageEngine = pkg.CloudinaryStorage || pkg.default?.CloudinaryStorage || pkg.default || pkg;
+
+const storage = new StorageEngine({
     cloudinary: cloudinary,
     params: {
         folder: 'charming_products',

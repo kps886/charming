@@ -154,7 +154,7 @@ router.delete('/:id', protect, shopkeeperAndAbove, async (req, res) => {
             for (const imageUrl of product.images) {
                 try {
                     const public_id = imageUrl
-                        .substring(imageUrl.indexOf('monikaCreation_products'))
+                        .substring(imageUrl.indexOf('charming_products'))
                         .split('.')[0];
 
                     cloudinary.uploader.destroy(public_id, { invalidate: true }).then(result => {

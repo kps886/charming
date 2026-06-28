@@ -65,6 +65,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .mobile-logo,.tab-logo,.pc-logo {
   height: 100%;
+  font-size: 32px;
   img{
     height: 100%;
   }

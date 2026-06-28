@@ -86,7 +86,7 @@ const LoginPage = () => {
             <div className="w-full max-w-md relative z-10">
                 {/* Logo Area */}
                 <div className="text-center mb-8">
-                    <h1 className="text-5xl font-serif text-accent-gold" style={{ fontFamily: "'Playfair Display', serif" }}>
+                    <h1 className="text-5xl font-serif text-accent-gold" >
                         Charming
                     </h1>
                     <p className="text-text-secondary mt-2 tracking-wider text-sm uppercase font-semibold">

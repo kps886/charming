@@ -157,13 +157,9 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                     </div>
 
                     {/* ─── MOBILE/TABLET: Center (Logo) ─── */}
-                    <div className="lg:hidden flex justify-center tab-logo">
+                    <div className="lg:hidden flex justify-center tab-logo items-center">
                         <Link to="/">
-                            <img
-                                src="/suman-logo.png"
-                                alt="Monika Creation Logo"
-                                className="h-full sm:h-10 w-auto object-contain"
-                            />
+                            Charming
                         </Link>
                     </div>
 
@@ -461,7 +457,7 @@ const ProductCard = ({ product }) => {
                 <Link to={`/product/${product._id}`} onClick={saveScrollPosition}>
                     <h3 className="text-sm font-serif hover:text-accent-gold transition-colors
                         line-clamp-2 mb-1"
-                        style={{ fontFamily: "'Playfair Display', serif" }}>
+                        >
                         {product.name}
                     </h3>
                 </Link>
@@ -547,7 +543,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
         <div>
             <SEOTags
                 title="Luxury Curated Collections"
-                description="Discover the finest Kurta Sets, Sherwanis, and luxury accessories at Monika Creation."
+                description="Discover the finest Kurta Sets, Sherwanis, and luxury accessories at Charming."
             />
             {/* Hero */}
             {!category && !search && !minPrice && !maxPrice && page === 1 && (
@@ -555,7 +551,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                     to-gray-900 flex items-center justify-center text-center px-4 relative overflow-hidden">
                     <div className="relative z-10">
                         <h1 className="text-5xl md:text-7xl font-serif text-white drop-shadow-lg"
-                            style={{ fontFamily: "'Playfair Display', serif" }}>
+                            >
                             Discover Your Charm
                         </h1>
                         <p className="text-xl text-gray-300 mt-4">
@@ -589,7 +585,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                 {/* Toolbar */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 pb-4 border-b border-border-color">
                     <div>
-                        <h2 className="text-3xl font-serif" style={{ fontFamily: "'Playfair Display', serif" }}>
+                        <h2 className="text-3xl font-serif" >
                             {search ? `Results for "${search}"` : category || 'All Collection'}
                         </h2>
                         <p className="text-sm text-text-secondary mt-1">Showing {pagination.total} styles</p>
@@ -647,7 +643,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
 
                         {/* Mobile Drawer Header */}
                         <div className="flex items-center justify-between lg:hidden mb-8 border-b border-border-color pb-4">
-                            <h2 className="text-xl font-serif" style={{ fontFamily: "'Playfair Display', serif" }}>Filters</h2>
+                            <h2 className="text-xl font-serif" >Filters</h2>
                             <button onClick={() => setIsMobileFilterOpen(false)} className="p-2 hover:text-accent-gold text-xl">✕</button>
                         </div>
 
@@ -1046,7 +1042,7 @@ function AppRoutes({ theme, toggleTheme, products, loading, error, category, set
                                 
                                 {/* Bottom Row: Copyright */}
                                 <p className="text-text-secondary text-sm text-center">
-                                    &copy; {new Date().getFullYear()} MonikaCreation. All Rights Reserved.
+                                    &copy; {new Date().getFullYear()} Charming. All Rights Reserved.
                                 </p>
                             </div>
                         </footer>

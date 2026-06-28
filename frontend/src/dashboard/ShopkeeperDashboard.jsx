@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 import { useAuth } from '../auth/AuthContext';
+import toast from 'react-hot-toast';
 
-const CATEGORIES = ['Electronics','Fragrances','Bags & Purses','Toys & Games','Home & Kitchen'];
+const CATEGORIES = ['Electronics', 'Fragrances', 'Bags & Purses', 'Toys & Games', 'Home & Kitchen'];
 
 const ORDER_STATUS_STYLES = {
-    pending:    'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
+    pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40',
     processing: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
-    shipped:    'bg-purple-500/20 text-purple-400 border-purple-500/40',
-    delivered:  'bg-green-500/20 text-green-400 border-green-500/40',
-    cancelled:  'bg-red-500/20 text-red-400 border-red-500/40',
+    shipped: 'bg-purple-500/20 text-purple-400 border-purple-500/40',
+    delivered: 'bg-green-500/20 text-green-400 border-green-500/40',
+    cancelled: 'bg-red-500/20 text-red-400 border-red-500/40',
 };
 
 const emptyForm = {
@@ -21,7 +22,6 @@ const emptyForm = {
 const ReviewsPanel = () => {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
     const [filter, setFilter] = useState('pending'); // 'pending' | 'approved' | 'all'
 
     const fetchAllReviews = async () => {
@@ -42,7 +42,7 @@ const ReviewsPanel = () => {
 
             setReviews(allReviews);
         } catch {
-            setError('Failed to fetch reviews');
+            toast.error('Failed to fetch reviews');
         }
         setLoading(false);
     };
@@ -54,7 +54,7 @@ const ReviewsPanel = () => {
             await api.put(`/api/products/${productId}/reviews/${reviewId}/toggle`);
             fetchAllReviews(); // Refresh the list
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to update review status');
+            toast.error(err.response?.data?.message || 'Failed to update review status');
         }
     };
 
@@ -134,11 +134,10 @@ const ReviewsPanel = () => {
 const Tab = ({ label, active, onClick, badge }) => (
     <button onClick={onClick}
         className={`flex items-center gap-2 px-4 py-3 text-sm font-bold uppercase
-            tracking-wider transition-colors border-b-2 whitespace-nowrap ${
-            active
+            tracking-wider transition-colors border-b-2 whitespace-nowrap ${active
                 ? 'border-accent-gold text-accent-gold'
                 : 'border-transparent text-text-secondary hover:text-text-primary'
-        }`}>
+            }`}>
         {label}
         {badge > 0 && (
             <span className="bg-accent-gold text-primary-bg text-xs font-bold
@@ -157,12 +156,10 @@ const OrdersPanel = () => {
     const [loading, setLoading] = useState(true);
     const [expanded, setExpanded] = useState(null);
     const [statusEdit, setStatusEdit] = useState({});
-    const [updating, setUpdating]     = useState(null);
-    const [error, setError]           = useState('');
-    const [success, setSuccess]       = useState('');
-    const [filter, setFilter]         = useState('all');
+    const [updating, setUpdating] = useState(null);
+    const [filter, setFilter] = useState('all');
 
-    const STATUSES = ['pending','processing','shipped','delivered','cancelled'];
+    const STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
     const fetchOrders = useCallback(async () => {
         setLoading(true);
@@ -170,7 +167,7 @@ const OrdersPanel = () => {
             const { data } = await api.get(`/api/orders?page=${page}&limit=20&status=${filter}`);
             setOrders(data.orders || []);
             setTotalPages(data.pages || 1);
-        } catch { setError('Failed to load orders'); }
+        } catch { toast.error('Failed to load orders'); }
         setLoading(false);
     }, [page, filter]);
 
@@ -181,30 +178,26 @@ const OrdersPanel = () => {
     const handleUpdateStatus = async (orderId) => {
         const edit = statusEdit[orderId];
         if (!edit?.status) return;
-        setUpdating(orderId); setError(''); setSuccess('');
+        setUpdating(orderId); toast.error(''); toast.success('');
         try {
             await api.put(`/api/orders/${orderId}/status`, {
-                orderStatus:    edit.status,
+                orderStatus: edit.status,
                 trackingNumber: edit.tracking || undefined,
             });
-            setSuccess('Order updated successfully');
+            toast.success('Order updated successfully');
             setStatusEdit(prev => { const n = { ...prev }; delete n[orderId]; return n; });
             fetchOrders();
-        } catch { setError('Failed to update order'); }
+        } catch { toast.error('Failed to update order'); }
         setUpdating(null);
     };
 
     return (
         <div>
-            {error   && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 text-red-400 rounded text-sm">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-500/10 border border-green-500/40 text-green-400 rounded text-sm">{success}</div>}
-
             <div className="flex gap-2 flex-wrap mb-5">
                 {['all', ...STATUSES].map(s => (
                     <button key={s} onClick={() => setFilter(s)}
                         className={`px-3 py-1.5 text-xs font-bold uppercase rounded border
-                            transition-colors ${
-                            filter === s
+                            transition-colors ${filter === s
                                 ? 'bg-accent-gold text-primary-bg border-accent-gold'
                                 : 'border-border-color text-text-secondary hover:border-text-secondary'
                             }`}>
@@ -290,58 +283,58 @@ const OrdersPanel = () => {
                                     </div>
 
                                     {order.orderStatus !== 'delivered' &&
-                                     order.orderStatus !== 'cancelled' && (
-                                        <div className="p-3 rounded border border-border-color bg-primary-bg">
-                                            <p className="text-xs font-bold uppercase tracking-wider
+                                        order.orderStatus !== 'cancelled' && (
+                                            <div className="p-3 rounded border border-border-color bg-primary-bg">
+                                                <p className="text-xs font-bold uppercase tracking-wider
                                                 text-text-secondary mb-3">
-                                                Update Status
-                                            </p>
-                                            <div className="flex flex-col sm:flex-row gap-2">
-                                                <select
-                                                    value={statusEdit[order._id]?.status || order.orderStatus}
-                                                    onChange={e => setStatusEdit(prev => ({
-                                                        ...prev,
-                                                        [order._id]: { ...prev[order._id], status: e.target.value },
-                                                    }))}
-                                                    className="flex-1 p-2 bg-secondary-bg border
+                                                    Update Status
+                                                </p>
+                                                <div className="flex flex-col sm:flex-row gap-2">
+                                                    <select
+                                                        value={statusEdit[order._id]?.status || order.orderStatus}
+                                                        onChange={e => setStatusEdit(prev => ({
+                                                            ...prev,
+                                                            [order._id]: { ...prev[order._id], status: e.target.value },
+                                                        }))}
+                                                        className="flex-1 p-2 bg-secondary-bg border
                                                         border-border-color rounded text-sm
                                                         focus:outline-none focus:border-accent-gold"
-                                                >
-                                                    {STATUSES.map(s => (
-                                                        <option key={s} value={s} className="capitalize">{s}</option>
-                                                    ))}
-                                                </select>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Tracking number (optional)"
-                                                    value={statusEdit[order._id]?.tracking || order.trackingNumber || ''}
-                                                    onChange={e => setStatusEdit(prev => ({
-                                                        ...prev,
-                                                        [order._id]: { ...prev[order._id], tracking: e.target.value },
-                                                    }))}
-                                                    className="flex-1 p-2 bg-secondary-bg border
+                                                    >
+                                                        {STATUSES.map(s => (
+                                                            <option key={s} value={s} className="capitalize">{s}</option>
+                                                        ))}
+                                                    </select>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Tracking number (optional)"
+                                                        value={statusEdit[order._id]?.tracking || order.trackingNumber || ''}
+                                                        onChange={e => setStatusEdit(prev => ({
+                                                            ...prev,
+                                                            [order._id]: { ...prev[order._id], tracking: e.target.value },
+                                                        }))}
+                                                        className="flex-1 p-2 bg-secondary-bg border
                                                         border-border-color rounded text-sm
                                                         focus:outline-none focus:border-accent-gold"
-                                                />
-                                                <button
-                                                    onClick={() => handleUpdateStatus(order._id)}
-                                                    disabled={updating === order._id}
-                                                    className="px-5 py-2 bg-accent-gold text-primary-bg
+                                                    />
+                                                    <button
+                                                        onClick={() => handleUpdateStatus(order._id)}
+                                                        disabled={updating === order._id}
+                                                        className="px-5 py-2 bg-accent-gold text-primary-bg
                                                         font-bold text-sm hover:bg-yellow-500 transition-colors
                                                         disabled:opacity-50 rounded"
-                                                >
-                                                    {updating === order._id ? 'Saving...' : 'Update'}
-                                                </button>
+                                                    >
+                                                        {updating === order._id ? 'Saving...' : 'Update'}
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
                                 </div>
                             )}
                         </div>
                     ))}
                 </div>
             )}
-            
+
             {/* Pagination Controls */}
             {!loading && totalPages > 1 && (
                 <div className="flex justify-between items-center mt-6 p-4 bg-secondary-bg border border-border-color rounded">
@@ -357,34 +350,34 @@ const OrdersPanel = () => {
 // ── Products panel ────────────────────────────────────────────
 const ProductsPanel = ({ user }) => {
     const [products, setProducts] = useState([]);
-    const [loading, setLoading]   = useState(true);
+    const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
-    const [form, setForm]         = useState(emptyForm);
-    const [error, setError]       = useState('');
-    const [success, setSuccess]   = useState('');
+    const [form, setForm] = useState(emptyForm);
 
     const fetchProducts = async () => {
         setLoading(true);
         try {
             const { data } = await api.get('/api/products');
             setProducts(data.products);
-        } catch { setError('Failed to fetch products'); }
+        } catch { toast.error('Failed to fetch products'); }
         setLoading(false);
     };
     useEffect(() => { fetchProducts(); }, []);
 
-    const openAddForm  = () => { setEditingProduct(null); setForm(emptyForm); setShowForm(true); setError(''); setSuccess(''); };
+    const openAddForm = () => { setEditingProduct(null); setForm(emptyForm); setShowForm(true); toast.error(''); toast.success(''); };
     const openEditForm = (p) => {
         setEditingProduct(p);
-        setForm({ name: p.name, description: p.description, price: p.price,
+        setForm({
+            name: p.name, description: p.description, price: p.price,
             category: p.category, images: [], existingImages: p.images || [],
-            stock: p.stock, tags: p.tags ? p.tags.join(', ') : '' });
-        setShowForm(true); setError(''); setSuccess('');
+            stock: p.stock, tags: p.tags ? p.tags.join(', ') : ''
+        });
+        setShowForm(true); toast.error(''); toast.success('');
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault(); setError(''); setSuccess('');
+        e.preventDefault(); toast.error(''); toast.success('');
         const formData = new FormData();
         formData.append('name', form.name);
         formData.append('description', form.description);
@@ -399,27 +392,24 @@ const ProductsPanel = ({ user }) => {
             if (editingProduct) {
                 await api.put(`/api/products/${editingProduct._id}`, formData,
                     { headers: { 'Content-Type': 'multipart/form-data' } });
-                setSuccess('Product updated');
+                toast.success('Product updated');
             } else {
                 await api.post('/api/products', formData,
                     { headers: { 'Content-Type': 'multipart/form-data' } });
-                setSuccess('Product created');
+                toast.success('Product created');
             }
             setShowForm(false); fetchProducts();
-        } catch (err) { setError(err.response?.data?.message || 'Error saving product'); }
+        } catch (err) { toast.error(err.response?.data?.message || 'Error saving product'); }
     };
 
     const handleDelete = async (id, name) => {
         if (!window.confirm(`Delete "${name}"?`)) return;
         try { await api.delete(`/api/products/${id}`); fetchProducts(); }
-        catch { setError('Failed to delete product'); }
+        catch { toast.error('Failed to delete product'); }
     };
 
     return (
         <div>
-            {error   && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 text-red-400 rounded text-sm">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-500/10 border border-green-500/40 text-green-400 rounded text-sm">{success}</div>}
-
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Products ({products.length})</h2>
                 <button onClick={openAddForm}
@@ -495,7 +485,7 @@ const ProductsPanel = ({ user }) => {
                     <table className="w-full text-sm min-w-[520px]">
                         <thead>
                             <tr className="border-b border-border-color text-text-secondary uppercase tracking-wider text-xs">
-                                {['Product','Category','Price','Stock','Actions'].map(h => (
+                                {['Product', 'Category', 'Price', 'Stock', 'Actions'].map(h => (
                                     <th key={h} className="text-left py-3 px-4">{h}</th>
                                 ))}
                             </tr>
@@ -546,7 +536,7 @@ const ProductsPanel = ({ user }) => {
 
 // ── Main ShopkeeperDashboard ──────────────────────────────────
 const ShopkeeperDashboard = () => {
-    const { user }      = useAuth();
+    const { user } = useAuth();
     const [tab, setTab] = useState('orders');
 
     const [counts, setCounts] = useState({ products: 0, orders: 0, pending: 0, outOfStock: 0, pendingReviews: 0 });
@@ -556,13 +546,13 @@ const ShopkeeperDashboard = () => {
                 (prod.reviews || []).filter(r => !r.isApproved)
             ).length;
             setCounts({
-                products:   p.data.length,
-                orders:     o.data.length,
-                pending:    o.data.filter(x => x.orderStatus === 'pending').length,
+                products: p.data.length,
+                orders: o.data.length,
+                pending: o.data.filter(x => x.orderStatus === 'pending').length,
                 outOfStock: p.data.filter(x => x.stock === 0).length,
                 pendingReviews: allUnapprovedReviews
             });
-        }).catch(() => {});
+        }).catch(() => { });
     }, [tab]);
 
     return (
@@ -570,7 +560,7 @@ const ShopkeeperDashboard = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-serif"
-                        style={{ fontFamily: "'Playfair Display', serif" }}>
+                        >
                         Shopkeeper Dashboard
                     </h1>
                     <p className="text-text-secondary text-sm mt-1">Welcome, {user?.name}</p>
@@ -584,10 +574,10 @@ const ShopkeeperDashboard = () => {
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
                 {[
-                    { label: 'Total Orders',  value: counts.orders,     color: 'text-blue-400' },
-                    { label: 'Pending',        value: counts.pending,    color: 'text-yellow-400' },
-                    { label: 'Total Products', value: counts.products,   color: 'text-accent-gold' },
-                    { label: 'Out of Stock',   value: counts.outOfStock, color: 'text-red-400' },
+                    { label: 'Total Orders', value: counts.orders, color: 'text-blue-400' },
+                    { label: 'Pending', value: counts.pending, color: 'text-yellow-400' },
+                    { label: 'Total Products', value: counts.products, color: 'text-accent-gold' },
+                    { label: 'Out of Stock', value: counts.outOfStock, color: 'text-red-400' },
                 ].map(s => (
                     <div key={s.label} className="bg-secondary-bg border border-border-color p-4 text-center">
                         <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -598,13 +588,13 @@ const ShopkeeperDashboard = () => {
 
             {/* Tabs */}
             <div className="flex border-b border-border-color mb-6 overflow-x-auto">
-                <Tab label="Orders"   active={tab === 'orders'}   onClick={() => setTab('orders')}
+                <Tab label="Orders" active={tab === 'orders'} onClick={() => setTab('orders')}
                     badge={counts.pending} />
                 <Tab label="Products" active={tab === 'products'} onClick={() => setTab('products')} />
                 <Tab label="Reviews" active={tab === 'reviews'} onClick={() => setTab('reviews')} badge={counts.pendingReviews} />
             </div>
 
-            {tab === 'orders'   && <OrdersPanel />}
+            {tab === 'orders' && <OrdersPanel />}
             {tab === 'products' && <ProductsPanel user={user} />}
             {tab === 'reviews' && <ReviewsPanel />}
         </div>

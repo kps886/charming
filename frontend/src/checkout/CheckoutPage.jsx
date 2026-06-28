@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from './../api'
 import { CartContext } from '../cart/cartProvider';
 import { useAuth } from '../auth/AuthContext';
+import { DELIVERY_THRESHOLD, DELIVERY_FEE } from '../config/constants';
 
 // ── Razorpay script loader ────────────────────────────────────
 const loadRazorpay = () =>
@@ -25,9 +26,6 @@ const INDIAN_STATES = [
     'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
     'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry',
 ];
-
-const DELIVERY_THRESHOLD = 500;
-const DELIVERY_FEE = 50;
 
 // ── Empty address form ────────────────────────────────────────
 const emptyAddress = {
@@ -71,7 +69,7 @@ const StepBar = ({ current }) => {
 const OrderSummary = ({ cartItems, subtotal, deliveryFee, discount, total, promoCode }) => (
     <div className="bg-secondary-bg border border-border-color p-5 sticky top-24">
         <h3 className="font-serif text-lg mb-4 pb-3 border-b border-border-color"
-            style={{ fontFamily: "'Playfair Display', serif" }}>
+            >
             Order Summary
         </h3>
 
@@ -342,7 +340,7 @@ const CheckoutPage = () => {
     return (
         <div className="container mx-auto py-8 px-4 max-w-6xl">
             <h1 className="text-3xl font-serif text-center mb-8"
-                style={{ fontFamily: "'Playfair Display', serif" }}>
+                >
                 Checkout
             </h1>
 
@@ -356,7 +354,7 @@ const CheckoutPage = () => {
                     {step === 1 && (
                         <div className="bg-secondary-bg border border-border-color p-6">
                             <h2 className="text-xl font-serif mb-5"
-                                style={{ fontFamily: "'Playfair Display', serif" }}>
+                                >
                                 Shipping Address
                             </h2>
 
@@ -470,7 +468,7 @@ const CheckoutPage = () => {
                             <div className="bg-secondary-bg border border-border-color p-5">
                                 <div className="flex justify-between items-start">
                                     <h2 className="font-serif text-lg mb-3"
-                                        style={{ fontFamily: "'Playfair Display', serif" }}>
+                                        >
                                         Delivering To
                                     </h2>
                                     <button
@@ -489,7 +487,7 @@ const CheckoutPage = () => {
                             {/* Promo code */}
                             <div className="bg-secondary-bg border border-border-color p-5">
                                 <h2 className="font-serif text-lg mb-4"
-                                    style={{ fontFamily: "'Playfair Display', serif" }}>
+                                    >
                                     Promo Code
                                 </h2>
 
@@ -533,7 +531,7 @@ const CheckoutPage = () => {
                             {/* Price breakdown */}
                             <div className="bg-secondary-bg border border-border-color p-5">
                                 <h2 className="font-serif text-lg mb-4"
-                                    style={{ fontFamily: "'Playfair Display', serif" }}>
+                                    >
                                     Price Details
                                 </h2>
                                 <div className="space-y-2 text-sm">
@@ -571,7 +569,7 @@ const CheckoutPage = () => {
                     {step === 3 && (
                         <div className="bg-secondary-bg border border-border-color p-6">
                             <h2 className="text-xl font-serif mb-2"
-                                style={{ fontFamily: "'Playfair Display', serif" }}>
+                                >
                                 Payment
                             </h2>
                             <p className="text-text-secondary text-sm mb-6">

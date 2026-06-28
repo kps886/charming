@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const { data } = await api.post('/api/users/verify-otp', { email, otp });
             
-            localStorage.setItem('monikaCreationUser', JSON.stringify(data));
+            localStorage.setItem('charmingUser', JSON.stringify(data));
             setUser(data);
             
             setLoading(false);

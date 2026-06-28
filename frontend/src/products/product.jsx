@@ -180,7 +180,7 @@ const ProductDetailsPage = () => {
                     </div>
 
                     <h1 className="text-3xl md:text-4xl font-serif mb-2"
-                        style={{ fontFamily: "'Playfair Display', serif" }}>
+                        >
                         {product.name}
                     </h1>
 
@@ -299,7 +299,7 @@ const ProductDetailsPage = () => {
             {/* ── Reviews section ── */}
             <div className="max-w-3xl">
                 <h2 className="text-2xl font-serif mb-6 pb-3 border-b border-border-color"
-                    style={{ fontFamily: "'Playfair Display', serif" }}>
+                    >
                     Customer Reviews
                     {product.reviewCount > 0 && (
                         <span className="ml-3 text-base text-text-secondary font-sans font-normal">

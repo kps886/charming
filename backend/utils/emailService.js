@@ -280,7 +280,7 @@ export const sendLowStockAlert = async (product, adminEmails) => {
     for (const email of adminEmails) {
         await sendEmail({
             to: email,
-            subject: `🚨 Out of Stock Alert: ${product.name} | MonikaCreation`,
+            subject: `🚨 Out of Stock Alert: ${product.name} | Charming`,
             html,
         });
     }

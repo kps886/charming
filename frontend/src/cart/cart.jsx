@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CartContext } from './cartProvider';
 import { useAuth } from '../auth/AuthContext';
+import { DELIVERY_THRESHOLD, DELIVERY_FEE } from '../config/constants';
 
 const TrashIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
@@ -16,8 +17,6 @@ const CartPage = () => {
     const { isLoggedIn } = useAuth();
     const navigate = useNavigate();
 
-    const DELIVERY_THRESHOLD = 500;
-    const DELIVERY_FEE = 50;
     const deliveryFee = totalPrice >= DELIVERY_THRESHOLD || totalPrice === 0 ? 0 : DELIVERY_FEE;
     const finalTotal = totalPrice + deliveryFee;
 
@@ -31,7 +30,7 @@ const CartPage = () => {
 
     return (
         <div className="container mx-auto py-12 px-4 min-h-[60vh]">
-            <h1 className="text-4xl font-serif mb-8 text-center" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h1 className="text-4xl font-serif mb-8 text-center" >
                 Your Shopping Bag
             </h1>
 

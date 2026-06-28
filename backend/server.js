@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import helmet from 'helmet';
-// import mongoSanitize from 'express-mongo-sanitize';
+import mongoSanitize from 'express-mongo-sanitize';
 import rateLimit from 'express-rate-limit';
 import productRoutes from './routes/productRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -18,8 +18,8 @@ const app = express();
 
 app.use(helmet())
 const allowedOrigins = [
-    process.env.FRONTEND_URL, // Your live React app
-    'http://localhost:3000',  // Your local React app
+    process.env.FRONTEND_URL,
+    'http://localhost:5173',
 ];
 
 app.use(cors({
@@ -33,7 +33,7 @@ app.use(cors({
     },
     credentials: true,
 }));
-// app.use(mongoSanitize());
+app.use(mongoSanitize());
 app.set('trust proxy', 1);
 const apiLimiter = rateLimit({
     windowMs: 10 * 60 * 1000, 
@@ -83,8 +83,11 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ message: 'Internal Server Error' });
+    const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+    res.status(statusCode).json({
+        message: err.message || 'Internal Server Error',
+        stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+    });
 });
 
 const PORT = process.env.PORT || 5001;

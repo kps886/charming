@@ -4,7 +4,7 @@ import React from 'react';
 const LegalLayout = ({ title, lastUpdated, children }) => (
     <div className="container mx-auto py-12 px-4 max-w-4xl min-h-[60vh]">
         <h1 className="text-3xl md:text-4xl font-serif mb-2 text-accent-gold" 
-            style={{ fontFamily: "'Playfair Display', serif" }}>
+            >
             {title}
         </h1>
         <p className="text-sm text-text-secondary mb-8 pb-4 border-b border-border-color">
@@ -19,7 +19,7 @@ const LegalLayout = ({ title, lastUpdated, children }) => (
 // ── 1. Terms of Service ──
 export const TermsOfService = () => (
     <LegalLayout title="Terms of Service" lastUpdated="October 24, 2024">
-        <p>Welcome to MonikaCreation. By accessing our website and purchasing our products, you agree to be bound by the following terms and conditions.</p>
+        <p>Welcome to Charming. By accessing our website and purchasing our products, you agree to be bound by the following terms and conditions.</p>
         <h3 className="text-lg font-bold mt-6 mb-2">1. General Conditions</h3>
         <p>We reserve the right to refuse service to anyone for any reason at any time. You understand that your content (not including credit card information), may be transferred unencrypted and involve transmissions over various networks.</p>
         <h3 className="text-lg font-bold mt-6 mb-2">2. Products and Pricing</h3>
@@ -32,7 +32,7 @@ export const TermsOfService = () => (
 // ── 2. Privacy Policy ──
 export const PrivacyPolicy = () => (
     <LegalLayout title="Privacy Policy" lastUpdated="October 24, 2024">
-        <p>MonikaCreation ("we", "our", or "us") respects your privacy and is committed to protecting your personal data.</p>
+        <p>Charming ("we", "our", or "us") respects your privacy and is committed to protecting your personal data.</p>
         <h3 className="text-lg font-bold mt-6 mb-2">1. Information We Collect</h3>
         <p>When you make a purchase or attempt to make a purchase through the Site, we collect certain information from you, including your name, billing address, shipping address, payment information, email address, and phone number.</p>
         <h3 className="text-lg font-bold mt-6 mb-2">2. How We Use Your Information</h3>

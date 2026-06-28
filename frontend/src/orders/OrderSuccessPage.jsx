@@ -29,7 +29,7 @@ const OrderSuccessPage = () => {
                 </div>
 
                 <h1 className="text-3xl font-serif mb-2 text-green-400"
-                    style={{ fontFamily: "'Playfair Display', serif" }}>
+                    >
                     Order Placed!
                 </h1>
                 <p className="text-text-secondary mb-6">

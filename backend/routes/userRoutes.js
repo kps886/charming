@@ -40,10 +40,10 @@ router.post('/register', async (req, res) => {
         try {
             await sendEmail({
                 to: user.email,
-                subject: 'Verify your MonikaCreation Account',
+                subject: 'Verify your Charming Account',
                 html: `
                     <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
-                        <h2>Welcome to MonikaCreation!</h2>
+                        <h2>Welcome to Charming!</h2>
                         <p>Your verification code is:</p>
                         <h1 style="color: #d4af37; letter-spacing: 5px;">${otp}</h1>
                         <p>This code will expire in 10 minutes.</p>
@@ -136,7 +136,7 @@ router.post('/resend-otp', async (req, res) => {
                 subject: 'Your New Verification Code',
                 html: `
                     <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
-                        <h2>MonikaCreation</h2>
+                        <h2>Charming</h2>
                         <p>Here is your new verification code:</p>
                         <h1 style="color: #d4af37; letter-spacing: 5px;">${otp}</h1>
                         <p>This code will expire in 10 minutes.</p>

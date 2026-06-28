@@ -7,7 +7,7 @@ const SEOTags = ({
     image = '/suman-logo.png',
     url = window.location.href 
 }) => {
-    const siteTitle = `${title} | MonikaCreation`;
+    const siteTitle = `${title} | Charming`;
 
     return (
         <Helmet>

@@ -39,8 +39,8 @@ const ForgotPasswordPage = () => {
 
             <div className="w-full max-w-md relative z-10">
                 <div className="text-center mb-8">
-                    <h1 className="text-5xl font-serif text-accent-gold" style={{ fontFamily: "'Playfair Display', serif" }}>
-                        MonikaCreation
+                    <h1 className="text-5xl font-serif text-accent-gold" >
+                        Charming
                     </h1>
                 </div>
 
