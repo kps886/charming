@@ -2,7 +2,7 @@ import express from 'express';
 const router = express.Router();
 import Product from '../models/Product.js';
 import { protect, shopkeeperAndAbove, employeeAndAbove } from '../middleware/authMiddleware.js';
-import upload from '../middleware/uploadMiddleware.js';
+import upload, { cloudinary } from '../middleware/uploadMiddleware.js';
 
 // @desc    Fetch products with pagination, sorting, search, category filter
 // @route   GET /api/products?page=1&limit=12&sort=newest&category=X&search=Y
@@ -21,9 +21,14 @@ router.get('/', async (req, res) => {
                 { name: { $regex: req.query.search, $options: 'i' } },
                 { description: { $regex: req.query.search, $options: 'i' } },
                 { category: { $regex: req.query.search, $options: 'i' } },
+                { tags: { $regex: req.query.search, $options: 'i' } },
             ];
         }
-
+        if (req.query.minPrice || req.query.maxPrice) {
+            filter.price = {};
+            if (req.query.minPrice) filter.price.$gte = Number(req.query.minPrice);
+            if (req.query.maxPrice) filter.price.$lte = Number(req.query.maxPrice);
+        }
         // Build sort
         const SORT_MAP = {
             newest: { createdAt: -1 },
@@ -145,6 +150,27 @@ router.delete('/:id', protect, shopkeeperAndAbove, async (req, res) => {
         const product = await Product.findById(req.params.id);
         if (!product) return res.status(404).json({ message: 'Product not found' });
 
+        if (product.images && product.images.length > 0) {
+            for (const imageUrl of product.images) {
+                try {
+                    const public_id = imageUrl
+                        .substring(imageUrl.indexOf('charming_products'))
+                        .split('.')[0];
+
+                    cloudinary.uploader.destroy(public_id, { invalidate: true }).then(result => {
+                        if (result.result !== 'ok') {
+                            console.error("Cloudinary deletion failed for:", imageUrl, result);
+                        }
+                        else {
+                            console.log("Cloudinary deletion successful for:", result);
+                        }
+                    });
+                } catch (imgError) {
+                    console.error("Cloudinary deletion failed for:", imageUrl, imgError);
+                }
+            }
+        }
+
         await Product.deleteOne({ _id: req.params.id });
         res.json({ message: 'Product removed successfully' });
     } catch (error) {
@@ -181,14 +207,42 @@ router.post('/:id/reviews', protect, async (req, res) => {
             name:    req.user.name,
             rating:  Number(rating),
             comment: comment.trim(),
+            isApproved: false
         });
 
-        // Store avg rating and count on the product for easy access
-        product.avgRating    = product.reviews.reduce((a, r) => a + r.rating, 0) / product.reviews.length;
-        product.reviewCount  = product.reviews.length;
+        const approvedReviews = product.reviews.filter(r => r.isApproved);
+        product.avgRating = approvedReviews.length > 0
+            ? approvedReviews.reduce((a, r) => a + r.rating, 0) / approvedReviews.length
+            : 0;
+        product.reviewCount = approvedReviews.length;
 
         await product.save();
-        res.status(201).json({ message: 'Review added' });
+        res.status(201).json({ message: 'Review submitted! It will appear once approved.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+router.put('/:id/reviews/:reviewId/toggle', protect, shopkeeperAndAbove, async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+        if (!product) return res.status(404).json({ message: 'Product not found' });
+
+        const review = product.reviews.id(req.params.reviewId);
+        if (!review) return res.status(404).json({ message: 'Review not found' });
+
+        // Toggle the boolean
+        review.isApproved = !review.isApproved;
+
+        // Recalculate the overall product rating using only approved reviews
+        const approvedReviews = product.reviews.filter(r => r.isApproved);
+        product.avgRating = approvedReviews.length > 0 
+            ? approvedReviews.reduce((a, r) => a + r.rating, 0) / approvedReviews.length 
+            : 0;
+        product.reviewCount = approvedReviews.length;
+
+        await product.save();
+        res.json({ message: `Review ${review.isApproved ? 'Approved' : 'Hidden'}`, review });
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
     }

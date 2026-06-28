@@ -2,8 +2,8 @@ import nodemailer from 'nodemailer';
 
 // ── Transporter ───────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
-    host:   process.env.EMAIL_HOST,
-    port:   Number(process.env.EMAIL_PORT),
+    host: process.env.EMAIL_HOST,
+    port: Number(process.env.EMAIL_PORT),
     secure: false,
     auth: {
         user: process.env.EMAIL_USER,
@@ -12,10 +12,10 @@ const transporter = nodemailer.createTransport({
 });
 
 // ── Shared email wrapper ──────────────────────────────────────
-const sendEmail = async ({ to, subject, html }) => {
+export const sendEmail = async ({ to, subject, html }) => {
     try {
         await transporter.sendMail({
-            from:    process.env.EMAIL_FROM,
+            from: process.env.EMAIL_FROM,
             to,
             subject,
             html,
@@ -25,6 +25,29 @@ const sendEmail = async ({ to, subject, html }) => {
         // Log but never crash the server over a failed email
         console.error('Email failed:', err.message);
     }
+};
+
+export const sendPasswordResetEmail = async (userEmail, userName, resetUrl) => {
+    const html = layout(`
+        <div class="title">Password Reset Request</div>
+        <div class="sub">Hi ${userName}, we received a request to reset your password.</div>
+        
+        <p style="margin-bottom: 24px; font-size: 14px; line-height: 1.6; color: #444;">
+            Click the button below to choose a new password. This link is only valid for <strong>10 minutes</strong>.
+        </p>
+
+        <a href="${resetUrl}" class="btn" style="margin-top: 0; margin-bottom: 24px;">Reset Password</a>
+
+        <p style="font-size: 12px; color: #888; border-top: 1px solid #eee; padding-top: 16px;">
+            If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+        </p>
+    `);
+
+    await sendEmail({
+        to: userEmail,
+        subject: 'Reset your password for Charming',
+        html,
+    });
 };
 
 // ── Shared layout wrapper ─────────────────────────────────────
@@ -163,7 +186,7 @@ export const sendOrderConfirmation = async (order, userEmail, userName) => {
     `);
 
     await sendEmail({
-        to:      userEmail,
+        to: userEmail,
         subject: `Order Confirmed — #${orderId} | Charming`,
         html,
     });
@@ -174,24 +197,24 @@ export const sendOrderConfirmation = async (order, userEmail, userName) => {
 // ─────────────────────────────────────────────────────────────
 const STATUS_MESSAGES = {
     processing: {
-        emoji:   '📦',
-        title:   'Your order is being processed',
-        body:    'Our team has confirmed your order and is preparing it for dispatch.',
+        emoji: '📦',
+        title: 'Your order is being processed',
+        body: 'Our team has confirmed your order and is preparing it for dispatch.',
     },
     shipped: {
-        emoji:   '🚚',
-        title:   'Your order is on its way!',
-        body:    'Your package has been handed over to the courier and is headed your way.',
+        emoji: '🚚',
+        title: 'Your order is on its way!',
+        body: 'Your package has been handed over to the courier and is headed your way.',
     },
     delivered: {
-        emoji:   '✅',
-        title:   'Your order has been delivered',
-        body:    'We hope you love your purchase! If you have any issues, please reach out to us.',
+        emoji: '✅',
+        title: 'Your order has been delivered',
+        body: 'We hope you love your purchase! If you have any issues, please reach out to us.',
     },
     cancelled: {
-        emoji:   '❌',
-        title:   'Your order has been cancelled',
-        body:    'Your order has been cancelled. If a payment was made, it will be refunded within 5–7 business days.',
+        emoji: '❌',
+        title: 'Your order has been cancelled',
+        body: 'Your order has been cancelled. If a payment was made, it will be refunded within 5–7 business days.',
     },
 };
 
@@ -227,8 +250,38 @@ export const sendStatusUpdate = async (order, userEmail, userName) => {
     `);
 
     await sendEmail({
-        to:      userEmail,
+        to: userEmail,
         subject: `${info.emoji} Order ${order.orderStatus} — #${orderId} | Charming`,
         html,
     });
+};
+
+// ─────────────────────────────────────────────────────────────
+// 3. LOW STOCK ALERT EMAIL (ADMIN/SHOPKEEPER)
+// ─────────────────────────────────────────────────────────────
+export const sendLowStockAlert = async (product, adminEmails) => {
+    const html = layout(`
+        <div class="title">🚨 Action Required: Out of Stock</div>
+        <div class="sub">A product has reached 0 inventory after a recent purchase.</div>
+
+        <div class="label">Product Details</div>
+        <div class="address-block">
+            <strong>Name:</strong> ${product.name}<br/>
+            <strong>Category:</strong> ${product.category}<br/>
+            <strong>Product ID:</strong> ${product._id}
+        </div>
+
+        <a href="${process.env.FRONTEND_URL}/shopkeeper" class="btn" style="background: #ef4444; color: white;">
+            Go to Inventory Dashboard
+        </a>
+    `);
+
+    // Send to all staff members
+    for (const email of adminEmails) {
+        await sendEmail({
+            to: email,
+            subject: `🚨 Out of Stock Alert: ${product.name} | Charming`,
+            html,
+        });
+    }
 };

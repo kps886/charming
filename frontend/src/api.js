@@ -1,8 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // This tells Axios: "Use the Netlify variable if it exists, otherwise use localhost"
-  baseURL: process.env.REACT_APP_API_URL || "http://localhost:5001"
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5001"
 });
 
 api.interceptors.request.use(
@@ -18,6 +17,18 @@ api.interceptors.request.use(
         return config;
     },
     (error) => {
+        return Promise.reject(error);
+    }
+);
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            console.warn("Session expired. Logging out.");
+            localStorage.removeItem('charmingUser');
+            window.location.href = '/login'; 
+        }
         return Promise.reject(error);
     }
 );

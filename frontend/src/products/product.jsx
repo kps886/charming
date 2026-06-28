@@ -4,6 +4,7 @@ import api from '../api';
 import { CartContext } from '../cart/cartProvider';
 import { useAuth } from '../auth/AuthContext';
 import { WishlistContext } from '../wishlist/WishlistContext';
+import SEOTags from '../components/SEOTags';
 
 // ── Star components ────────────────────────────
 
@@ -40,7 +41,7 @@ const StarPicker = ({ value, onChange }) => (
 // ─────────────────────────────────────────────────────────────
 const ProductDetailsPage = () => {
     const { id } = useParams();
-    const { addToCart } = useContext(CartContext);
+    const { addToCart, cartItems, updateQty, removeFromCart } = useContext(CartContext);
     const { isWishlisted, toggle } = useContext(WishlistContext);
     const { isLoggedIn, user } = useAuth();
     const navigate = useNavigate();
@@ -49,6 +50,7 @@ const ProductDetailsPage = () => {
     const [loading, setLoading] = useState(true);
     const [added, setAdded] = useState(false);
     const [selectedImage, setSelectedImage] = useState(0);
+    const [imgLoaded, setImgLoaded] = useState(false);
 
     // Review form
     const [rating, setRating] = useState(0);
@@ -56,7 +58,7 @@ const ProductDetailsPage = () => {
     const [reviewLoading, setReviewLoading] = useState(false);
     const [reviewError, setReviewError] = useState('');
     const [reviewSuccess, setReviewSuccess] = useState('');
-
+    
     const fetchProduct = useCallback(async () => {
         try {
             const { data } = await api.get(`/api/products/${id}`);
@@ -68,6 +70,9 @@ const ProductDetailsPage = () => {
     useEffect(() => {
         fetchProduct();
     }, [fetchProduct]);
+    
+    const cartItem = product ? cartItems.find(x => x._id === product._id) : null;
+ 
 
     const handleAddToCart = () => {
         addToCart(product);
@@ -90,7 +95,7 @@ const ProductDetailsPage = () => {
 
         try {
             await api.post(`/api/products/${id}/reviews`, { rating, comment });
-            setReviewSuccess('Review submitted! Thank you.');
+            setReviewSuccess('Review submitted! It will appear once approved by our team.');
             setRating(0);
             setComment('');
             fetchProduct();  // reload to show new review
@@ -121,6 +126,11 @@ const ProductDetailsPage = () => {
 
     return (
         <div className="container mx-auto py-10 px-4 max-w-6xl">
+            <SEOTags 
+                title={product.name}
+                description={product.description}
+                image={product.images?.[0]} 
+            />
             <Link to="/" className="mb-6 inline-block text-accent-gold hover:underline text-sm">
                 ← Back to Shop
             </Link>
@@ -128,18 +138,24 @@ const ProductDetailsPage = () => {
             <div className="grid md:grid-cols-2 gap-10 mb-16">
                 {/* ── Images ── */}
                 <div>
-                    <div className="bg-secondary-bg border border-border-color p-3 mb-3">
+                    <div className="bg-secondary-bg border border-border-color p-3 relative aspect-square overflow-hidden">
+                        {!imgLoaded && (
+                            <div className="absolute inset-3 bg-border-color animate-pulse" />
+                        )}
                         <img
                             src={product.images?.[selectedImage] ||
                                 'https://placehold.co/600x600/222/D4AF37?text=Charming'}
                             alt={product.name}
-                            className="w-full aspect-square object-cover"
+                            onLoad={() => setImgLoaded(true)}
+                            className={`w-full h-full object-cover transition-opacity duration-500 ${
+                                imgLoaded ? 'opacity-100' : 'opacity-0'
+                            }`}
                         />
                     </div>
                     {product.images?.length > 1 && (
                         <div className="flex gap-2 flex-wrap">
                             {product.images.map((img, i) => (
-                                <button key={i} onClick={() => setSelectedImage(i)}
+                                <button key={i} onClick={() => { setSelectedImage(i); setImgLoaded(false); }}
                                     className={`w-16 h-16 border-2 overflow-hidden transition-colors ${selectedImage === i
                                             ? 'border-accent-gold'
                                             : 'border-border-color hover:border-text-secondary'
@@ -164,7 +180,7 @@ const ProductDetailsPage = () => {
                     </div>
 
                     <h1 className="text-3xl md:text-4xl font-serif mb-2"
-                        style={{ fontFamily: "'Playfair Display', serif" }}>
+                        >
                         {product.name}
                     </h1>
 
@@ -219,21 +235,40 @@ const ProductDetailsPage = () => {
 
                     {/* Action buttons */}
                     <div className="flex gap-3 flex-wrap">
-                        <button
-                            onClick={handleAddToCart}
-                            disabled={product.stock === 0}
-                            className={`flex-1 min-w-[160px] py-3 font-bold uppercase
-                                tracking-wider transition-all duration-200 text-sm ${product.stock === 0
-                                    ? 'bg-border-color text-text-secondary cursor-not-allowed'
-                                    : added
-                                        ? 'bg-green-500 text-white scale-95'
-                                        : 'bg-accent-gold text-primary-bg hover:bg-yellow-500'
+                        {cartItem ? (
+                            <div className="flex items-center border-2 border-accent-gold rounded h-12 flex-1 min-w-[160px] bg-primary-bg overflow-hidden">
+                                <button
+                                    onClick={() => cartItem.qty === 1 ? removeFromCart(cartItem._id) : updateQty(cartItem._id, cartItem.qty - 1)}
+                                    className="w-12 h-full text-xl font-bold hover:bg-accent-gold hover:text-primary-bg transition-colors text-accent-gold flex items-center justify-center"
+                                >
+                                    −
+                                </button>
+                                <span className="flex-1 text-center font-bold text-sm text-text-primary">
+                                    {cartItem.qty} Added
+                                </span>
+                                <button
+                                    onClick={() => updateQty(cartItem._id, cartItem.qty + 1)}
+                                    disabled={cartItem.qty >= product.stock}
+                                    className="w-12 h-full text-xl font-bold hover:bg-accent-gold hover:text-primary-bg transition-colors text-accent-gold flex items-center justify-center"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={handleAddToCart}
+                                disabled={product.stock === 0}
+                                className={`flex-1 min-w-[160px] h-12 font-bold uppercase tracking-wider transition-all duration-200 text-sm ${
+                                    product.stock === 0
+                                        ? 'bg-border-color text-text-secondary cursor-not-allowed'
+                                        : added
+                                            ? 'bg-green-500 text-white scale-95'
+                                            : 'bg-accent-gold text-primary-bg hover:bg-yellow-500'
                                 }`}
-                        >
-                            {product.stock === 0
-                                ? 'Out of Stock'
-                                : added ? '✓ Added!' : 'Add to Bag'}
-                        </button>
+                            >
+                                {product.stock === 0 ? 'Out of Stock' : added ? '✓ Added!' : 'Add to Bag'}
+                            </button>
+                        )}
 
                         {/* Wishlist button */}
                         <button
@@ -264,7 +299,7 @@ const ProductDetailsPage = () => {
             {/* ── Reviews section ── */}
             <div className="max-w-3xl">
                 <h2 className="text-2xl font-serif mb-6 pb-3 border-b border-border-color"
-                    style={{ fontFamily: "'Playfair Display', serif" }}>
+                    >
                     Customer Reviews
                     {product.reviewCount > 0 && (
                         <span className="ml-3 text-base text-text-secondary font-sans font-normal">
@@ -346,7 +381,7 @@ const ProductDetailsPage = () => {
                     </p>
                 ) : (
                     <div className="space-y-4">
-                        {[...product.reviews].reverse().map((r, i) => (
+                        {[...product.reviews].filter(r => r.isApproved).reverse().map((r, i) => (
                             <div key={i}
                                 className="bg-secondary-bg border border-border-color p-4">
                                 <div className="flex items-start justify-between gap-4 mb-2">

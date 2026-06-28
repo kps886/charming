@@ -156,9 +156,21 @@ router.post('/verify-payment', protect, async (req, res) => {
 
         // 3. Deduct stock for each item
         for (const item of order.items) {
-            await Product.findByIdAndUpdate(item.product, {
+            const updatedProduct = await Product.findByIdAndUpdate(item.product, {
                 $inc: { stock: -item.quantity },
-            });
+            }, { new: true });
+
+            if (updatedProduct && updatedProduct.stock <= 0) {
+                const staffMembers = await User.find({ 
+                    role: { $in: ['admin', 'shopkeeper'] } 
+                }).select('email');
+                
+                const staffEmails = staffMembers.map(u => u.email);
+                
+                if (staffEmails.length > 0) {
+                    await sendLowStockAlert(updatedProduct, staffEmails);
+                }
+            }
         }
 
         // 4. Increment promo code usage
@@ -208,16 +220,31 @@ router.get('/:id', protect, async (req, res) => {
     }
 });
 
-// ─────────────────────────────────────────────
-// GET /api/orders  →  all orders (staff only)
-// ─────────────────────────────────────────────
+// @desc    Get all orders (staff only)
+// @route   GET /api/orders
+// @access  Private/Employee+
 router.get('/', protect, employeeAndAbove, async (req, res) => {
     try {
-        const orders = await Order.find({})
-            .sort({ createdAt: -1 })
-            .populate('user', 'name email')
-            .populate('items.product', 'name');
-        res.json(orders);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+        
+        // Allow backend filtering by status so pagination math stays accurate
+        const filter = req.query.status && req.query.status !== 'all' 
+            ? { orderStatus: req.query.status } 
+            : {};
+
+        const [orders, total] = await Promise.all([
+            Order.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .populate('user', 'name email')
+                .populate('items.product', 'name'),
+            Order.countDocuments(filter)
+        ]);
+
+        res.json({ orders, page, pages: Math.ceil(total / limit), total });
     } catch (err) {
         res.status(500).json({ message: 'Error fetching orders' });
     }
@@ -254,6 +281,39 @@ router.put('/:id/status', protect, employeeAndAbove, async (req, res) => {
         res.json(order);
     } catch (err) {
         res.status(500).json({ message: 'Error updating order status' });
+    }
+});
+
+// @desc    Cancel an order (User initiated)
+// @route   PUT /api/orders/:id/cancel
+// @access  Private
+router.put('/:id/cancel', protect, async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        // 1. Security Check: Does this order actually belong to the person requesting the cancel?
+        if (order.user.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Not authorized to modify this order' });
+        }
+
+        // 2. Logic Check: We ONLY cancel if it hasn't been processed yet
+        if (order.orderStatus !== 'pending') {
+            return res.status(400).json({ 
+                message: `You cannot cancel an order that is already ${order.orderStatus}. Please contact support.` 
+            });
+        }
+
+        // 3. Update status
+        order.orderStatus = 'cancelled';
+        await order.save();
+
+        res.json({ message: 'Order cancelled successfully', order });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error cancelling order' });
     }
 });
 

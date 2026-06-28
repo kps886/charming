@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CartContext } from './cartProvider';
 import { useAuth } from '../auth/AuthContext';
+import { DELIVERY_THRESHOLD, DELIVERY_FEE } from '../config/constants';
 
 const TrashIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
@@ -16,6 +17,9 @@ const CartPage = () => {
     const { isLoggedIn } = useAuth();
     const navigate = useNavigate();
 
+    const deliveryFee = totalPrice >= DELIVERY_THRESHOLD || totalPrice === 0 ? 0 : DELIVERY_FEE;
+    const finalTotal = totalPrice + deliveryFee;
+
     const handleCheckout = () => {
         if (!isLoggedIn) {
             navigate('/login', { state: { from: { pathname: '/checkout' } } });
@@ -26,7 +30,7 @@ const CartPage = () => {
 
     return (
         <div className="container mx-auto py-12 px-4 min-h-[60vh]">
-            <h1 className="text-4xl font-serif mb-8 text-center" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h1 className="text-4xl font-serif mb-8 text-center" >
                 Your Shopping Bag
             </h1>
 
@@ -67,6 +71,7 @@ const CartPage = () => {
                                     </span>
                                     <button
                                         onClick={() => updateQty(item._id, item.qty + 1)}
+                                        disabled={item.qty >= item.stock}
                                         className="px-3 py-1 hover:bg-primary-bg transition-colors font-bold"
                                     >
                                         +
@@ -92,11 +97,18 @@ const CartPage = () => {
                         </div>
                         <div className="flex justify-between items-center mb-6 text-text-secondary">
                             <span>Shipping</span>
-                            <span className="text-green-400">Free</span>
+                            <span className={deliveryFee === 0 ? "text-green-400 font-semibold" : ""}>
+                                {deliveryFee === 0 ? 'Free' : `₹${deliveryFee}`}
+                            </span>
                         </div>
+                        {totalPrice > 0 && totalPrice < DELIVERY_THRESHOLD && (
+                            <p className="text-xs text-text-secondary mb-4 bg-primary-bg p-2 rounded border border-border-color">
+                                💡 Add ₹{(DELIVERY_THRESHOLD - totalPrice).toLocaleString('en-IN')} more for free delivery
+                            </p>
+                        )}
                         <div className="border-t border-border-color pt-4 flex justify-between items-center mb-6">
                             <h3 className="text-xl font-serif font-bold">Total</h3>
-                            <h3 className="text-xl font-bold text-accent-gold">₹{totalPrice.toLocaleString('en-IN')}</h3>
+                            <h3 className="text-xl font-bold text-accent-gold">₹{finalTotal.toLocaleString('en-IN')}</h3>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3">
                             <button

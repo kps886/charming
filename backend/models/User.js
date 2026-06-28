@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const addressSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
@@ -40,6 +41,27 @@ const userSchema = new mongoose.Schema({
         default: null,
     },
     isActive: { type: Boolean, default: true },
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
+    isVerified: { 
+        type: Boolean, 
+        default: false 
+    },
+    otp: { 
+        type: String 
+    },
+    otpExpire: { 
+        type: Date 
+    },
+    otpResendCount: {
+        type: Number,
+        default: 0
+    },
+    unverifiedExpireAt: {
+        type: Date,
+        default: () => Date.now() + 24 * 60 * 60 * 1000,
+        expires: 0
+    },
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {
@@ -50,6 +72,19 @@ userSchema.pre('save', async function () {
 
 userSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
+};
+
+userSchema.methods.getResetPasswordToken = function () {
+    const resetToken = crypto.randomBytes(20).toString('hex');
+
+    this.resetPasswordToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+
+    this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+
+    return resetToken;
 };
 
 const User = mongoose.model('User', userSchema);

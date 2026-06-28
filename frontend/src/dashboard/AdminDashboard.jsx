@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from './../api';
 import { useAuth } from '../auth/AuthContext';
 import AnalyticsDashboard from './AnalyticsDashboard';
+import toast from 'react-hot-toast';
 
 const ROLE_BADGE = {
     admin: 'bg-red-500/20 text-red-400 border-red-500/40',
@@ -56,36 +57,37 @@ const UsersPanel = ({ currentUserId }) => {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'employee' });
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
+    const [page, setPage] = useState(1);         // <-- NEW
+    const [totalPages, setTotalPages] = useState(1);
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
-            const { data } = await api.get('/api/users');
-            setUsers(data);
-        } catch { setError('Failed to load users'); }
+            const { data } = await api.get(`/api/users?page=${page}&limit=20`);
+            setUsers(data.users);
+            setTotalPages(data.pages);
+        } catch { toast.error('Failed to load users'); }
         setLoading(false);
-    };
-    useEffect(() => { fetchUsers(); }, []);
+    }, [page]);
+    useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
-        setError(''); setSuccess('');
+        toast.error(''); toast.success('');
         try {
             await api.post('/api/users/create', newUser);
-            setSuccess(`User "${newUser.name}" created as ${newUser.role}`);
+            toast.success(`User "${newUser.name}" created as ${newUser.role}`);
             setNewUser({ name: '', email: '', password: '', role: 'employee' });
             setShowForm(false);
             fetchUsers();
-        } catch (err) { setError(err.response?.data?.message || 'Error creating user'); }
+        } catch (err) { toast.error(err.response?.data?.message || 'Error creating user'); }
     };
 
     const handleToggle = async (u) => {
         try {
             await api.put(`/api/users/${u._id}`, { isActive: !u.isActive });
             fetchUsers();
-        } catch { setError('Failed to update user'); }
+        } catch { toast.error('Failed to update user'); }
     };
 
     const handleDelete = async (id, name) => {
@@ -93,14 +95,11 @@ const UsersPanel = ({ currentUserId }) => {
         try {
             await api.delete(`/api/users/${id}`);
             fetchUsers();
-        } catch (err) { setError(err.response?.data?.message || 'Failed to delete'); }
+        } catch (err) { toast.error(err.response?.data?.message || 'Failed to delete'); }
     };
 
     return (
         <div>
-            {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 text-red-400 rounded text-sm">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-500/10 border border-green-500/40 text-green-400 rounded text-sm">{success}</div>}
-
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">All Users ({users.length})</h2>
                 <button
@@ -211,6 +210,13 @@ const UsersPanel = ({ currentUserId }) => {
                             ))}
                         </tbody>
                     </table>
+                    {totalPages > 1 && (
+                        <div className="flex justify-between items-center mt-4 p-4 border-t border-border-color">
+                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-4 py-2 border border-border-color text-sm font-semibold hover:border-accent-gold disabled:opacity-50">Previous</button>
+                            <span className="text-sm text-text-secondary">Page {page} of {totalPages}</span>
+                            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-4 py-2 border border-border-color text-sm font-semibold hover:border-accent-gold disabled:opacity-50">Next</button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -220,38 +226,40 @@ const UsersPanel = ({ currentUserId }) => {
 // ── Orders panel ──────────────────────────────────────────────
 const OrdersPanel = () => {
     const [orders, setOrders] = useState([]);
+    const [page, setPage] = useState(1);         // <-- NEW
+    const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(true);
     const [expanded, setExpanded] = useState(null);
     const [statusEdit, setStatusEdit] = useState({});   // { [orderId]: { status, tracking } }
     const [updating, setUpdating] = useState(null);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
     const [filter, setFilter] = useState('all');
 
-    const fetchOrders = async () => {
+    const fetchOrders = useCallback(async () => {
         setLoading(true);
         try {
-            const { data } = await api.get('/api/orders');
-            setOrders(data);
-        } catch { setError('Failed to load orders'); }
+            const { data } = await api.get(`/api/orders?page=${page}&limit=20&status=${filter}`);
+            setOrders(data.orders || []);
+            setTotalPages(data.pages || 1);
+        } catch { toast.error('Failed to load orders'); }
         setLoading(false);
-    };
-    useEffect(() => { fetchOrders(); }, []);
+    }, [page, filter]);
+    useEffect(() => { setPage(1); }, [filter]);
+    useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
     const handleUpdateStatus = async (orderId) => {
         const edit = statusEdit[orderId];
         if (!edit?.status) return;
         setUpdating(orderId);
-        setError(''); setSuccess('');
+        toast.error(''); toast.success('');
         try {
             await api.put(`/api/orders/${orderId}/status`, {
                 orderStatus: edit.status,
                 trackingNumber: edit.tracking || undefined,
             });
-            setSuccess('Order status updated');
+            toast.success('Order status updated');
             setStatusEdit(prev => { const n = { ...prev }; delete n[orderId]; return n; });
             fetchOrders();
-        } catch (err) { setError(err.response?.data?.message || 'Update failed'); }
+        } catch (err) { toast.error(err.response?.data?.message || 'Update failed'); }
         setUpdating(null);
     };
 
@@ -261,16 +269,13 @@ const OrdersPanel = () => {
 
     return (
         <div>
-            {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 text-red-400 rounded text-sm">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-500/10 border border-green-500/40 text-green-400 rounded text-sm">{success}</div>}
-
             {/* Filter bar */}
             <div className="flex gap-2 flex-wrap mb-5">
                 {['all', ...STATUSES].map(s => (
                     <button key={s} onClick={() => setFilter(s)}
                         className={`px-3 py-1.5 text-xs font-bold uppercase rounded border transition-colors ${filter === s
-                                ? 'bg-accent-gold text-primary-bg border-accent-gold'
-                                : 'border-border-color text-text-secondary hover:border-text-secondary'
+                            ? 'bg-accent-gold text-primary-bg border-accent-gold'
+                            : 'border-border-color text-text-secondary hover:border-text-secondary'
                             }`}>
                         {s} {s === 'all' ? `(${orders.length})` : `(${orders.filter(o => o.orderStatus === s).length})`}
                     </button>
@@ -283,7 +288,7 @@ const OrdersPanel = () => {
                 <p className="text-center py-12 text-text-secondary">No orders found.</p>
             ) : (
                 <div className="space-y-3">
-                    {filtered.map(order => (
+                    {orders.map(order => (
                         <div key={order._id}
                             className="bg-secondary-bg border border-border-color overflow-hidden">
                             {/* Row header */}
@@ -461,6 +466,13 @@ const OrdersPanel = () => {
                     ))}
                 </div>
             )}
+            {!loading && totalPages > 1 && (
+                <div className="flex justify-between items-center mt-6 p-4 bg-secondary-bg border border-border-color rounded">
+                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-4 py-2 border border-border-color text-sm font-semibold hover:border-accent-gold disabled:opacity-50">Previous</button>
+                    <span className="text-sm text-text-secondary">Page {page} of {totalPages}</span>
+                    <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-4 py-2 border border-border-color text-sm font-semibold hover:border-accent-gold disabled:opacity-50">Next</button>
+                </div>
+            )}
         </div>
     );
 };
@@ -475,22 +487,20 @@ const PromoPanel = () => {
         maxDiscountAmount: '', minOrderValue: '', expiresAt: '',
         usageLimit: '', isActive: true,
     });
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
 
     const fetchPromos = async () => {
         setLoading(true);
         try {
             const { data } = await api.get('/api/promo');
             setPromos(data);
-        } catch { setError('Failed to load promo codes'); }
+        } catch { toast.error('Failed to load promo codes'); }
         setLoading(false);
     };
     useEffect(() => { fetchPromos(); }, []);
 
     const handleCreate = async (e) => {
         e.preventDefault();
-        setError(''); setSuccess('');
+        toast.error(''); toast.success('');
         const payload = {
             ...form,
             discountValue: Number(form.discountValue),
@@ -501,7 +511,7 @@ const PromoPanel = () => {
         };
         try {
             await api.post('/api/promo', payload);
-            setSuccess(`Promo code "${form.code}" created`);
+            toast.success(`Promo code "${form.code}" created`);
             setForm({
                 code: '', discountType: 'flat', discountValue: '',
                 maxDiscountAmount: '', minOrderValue: '', expiresAt: '',
@@ -509,14 +519,14 @@ const PromoPanel = () => {
             });
             setShowForm(false);
             fetchPromos();
-        } catch (err) { setError(err.response?.data?.message || 'Error creating promo'); }
+        } catch (err) { toast.error(err.response?.data?.message || 'Error creating promo'); }
     };
 
     const handleToggle = async (p) => {
         try {
             await api.put(`/api/promo/${p._id}`, { isActive: !p.isActive });
             fetchPromos();
-        } catch { setError('Failed to update'); }
+        } catch { toast.error('Failed to update'); }
     };
 
     const handleDelete = async (id, code) => {
@@ -524,14 +534,11 @@ const PromoPanel = () => {
         try {
             await api.delete(`/api/promo/${id}`);
             fetchPromos();
-        } catch { setError('Failed to delete'); }
+        } catch { toast.error('Failed to delete'); }
     };
 
     return (
         <div>
-            {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 text-red-400 rounded text-sm">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-500/10 border border-green-500/40 text-green-400 rounded text-sm">{success}</div>}
-
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Promo Codes ({promos.length})</h2>
                 <button
@@ -696,14 +703,13 @@ const PromoPanel = () => {
 const ProductsPanel = () => {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
 
     useEffect(() => {
         api.get('/api/products')
             .then(r => {
                 setProducts(r.data.products); setLoading(false);
             })
-            .catch(() => { setError('Failed to load'); setLoading(false); });
+            .catch(() => { toast.error('Failed to load'); setLoading(false); });
     }, []);
 
     const handleDelete = async (id, name) => {
@@ -711,12 +717,11 @@ const ProductsPanel = () => {
         try {
             await api.delete(`/api/products/${id}`);
             setProducts(p => p.filter(x => x._id !== id));
-        } catch { setError('Failed to delete'); }
+        } catch { toast.error('Failed to delete'); }
     };
 
     return (
         <div>
-            {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 text-red-400 rounded text-sm">{error}</div>}
             <h2 className="text-lg font-semibold mb-4">All Products ({products.length})</h2>
             {loading ? (
                 <p className="text-center py-12 text-text-secondary animate-pulse">Loading...</p>
@@ -773,21 +778,21 @@ const AdminDashboard = () => {
     useEffect(() => {
         const load = async () => {
             try {
-                const [u, o, p, pr] = await Promise.all([
-                    api.get('/api/users'),
-                    api.get('/api/orders'),
-                    api.get('/api/products'),
-                    api.get('/api/promo'),
+                // Instantly grab heavy counts from analytics, and fetch the (small) promos array
+                const [analyticsRes, promosRes] = await Promise.all([
+                    api.get('/api/analytics'),
+                    api.get('/api/promo')
                 ]);
+
+                const data = analyticsRes.data;
+
                 setCounts({
-                    users: u.data.length,
-                    orders: o.data.length,
-                    products: p.data.products.length,
-                    promos: pr.data.length,
-                    pending: o.data.filter(x => x.orderStatus === 'pending').length,
-                    revenue: o.data
-                        .filter(x => x.paymentStatus === 'paid')
-                        .reduce((a, x) => a + x.total, 0),
+                    users: data.summary.totalUsers,
+                    orders: data.summary.totalOrders,
+                    products: data.summary.totalProducts,
+                    promos: promosRes.data.length,
+                    pending: data.statusCounts.pending,
+                    revenue: data.summary.totalRevenue,
                 });
             } catch { /* silent */ }
         };
@@ -800,7 +805,7 @@ const AdminDashboard = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-serif"
-                        style={{ fontFamily: "'Playfair Display', serif" }}>
+                        >
                         Admin Dashboard
                     </h1>
                     <p className="text-text-secondary text-sm mt-1">Welcome back, {user.name}</p>

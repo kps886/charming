@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from './../api';
 import { useAuth } from '../auth/AuthContext';
+import toast from 'react-hot-toast';
 
 const EmployeeDashboard = () => {
     const { user } = useAuth();
@@ -8,8 +9,6 @@ const EmployeeDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [editingId, setEditingId] = useState(null);
     const [stockEdit, setStockEdit] = useState('');
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
 
     const fetchProducts = async () => {
         setLoading(true);
@@ -17,7 +16,7 @@ const EmployeeDashboard = () => {
             const { data } = await api.get('/api/products');
             setProducts(data);
         } catch {
-            setError('Failed to fetch products');
+            toast.error('Failed to fetch products');
         }
         setLoading(false);
     };
@@ -25,14 +24,13 @@ const EmployeeDashboard = () => {
     useEffect(() => { fetchProducts(); }, []);
 
     const handleUpdateStock = async (productId) => {
-        setError(''); setSuccess('');
         try {
             await api.put(`/api/products/${productId}`, { stock: parseInt(stockEdit) });
-            setSuccess('Stock updated successfully');
+            toast.success('Stock updated successfully');
             setEditingId(null);
             fetchProducts();
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to update stock');
+            toast.error(err.response?.data?.message || 'Failed to update stock');
         }
     };
 
@@ -43,7 +41,7 @@ const EmployeeDashboard = () => {
         <div className="container mx-auto py-8 px-4">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-serif" style={{ fontFamily: "'Playfair Display', serif" }}>
+                    <h1 className="text-3xl font-serif" >
                         Inventory Management
                     </h1>
                     <p className="text-text-secondary mt-1">Welcome, {user.name}</p>
@@ -52,9 +50,6 @@ const EmployeeDashboard = () => {
                     Employee
                 </span>
             </div>
-
-            {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 text-red-400 rounded text-sm">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-500/10 border border-green-500/40 text-green-400 rounded text-sm">{success}</div>}
 
             {/* Alerts */}
             {outOfStock.length > 0 && (

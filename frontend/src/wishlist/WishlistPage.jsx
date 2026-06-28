@@ -17,7 +17,7 @@ const WishlistPage = () => {
     return (
         <div className="container mx-auto py-10 px-4 max-w-5xl">
             <h1 className="text-3xl font-serif mb-8"
-                style={{ fontFamily: "'Playfair Display', serif" }}>
+                >
                 My Wishlist
                 <span className="ml-3 text-lg text-text-secondary font-sans font-normal">
                     ({wishlist.length})
@@ -76,7 +76,7 @@ const WishlistPage = () => {
                                 <Link to={`/product/${product._id}`}>
                                     <h3 className="font-serif text-base hover:text-accent-gold
                                         transition-colors line-clamp-2 mb-1"
-                                        style={{ fontFamily: "'Playfair Display', serif" }}>
+                                        >
                                         {product.name}
                                     </h3>
                                 </Link>

@@ -16,6 +16,13 @@ import MyOrdersPage from './orders/MyOrdersPage';
 import ProfilePage from './profile/ProfilePage';
 import { WishlistProvider, WishlistContext } from './wishlist/WishlistContext';
 import WishlistPage from './wishlist/WishlistPage';
+import ForgotPasswordPage from './login/ForgotPasswordPage';
+import ResetPasswordPage from './login/ResetPasswordPage';
+import OTPVerificationPage from './login/OTPVerificationPage';
+import { Toaster } from 'react-hot-toast';
+import { HelmetProvider } from 'react-helmet-async';
+import SEOTags from './components/SEOTags';
+import { TermsOfService, PrivacyPolicy, ShippingPolicy, RefundPolicy } from './pages/LegalPages'; // Adjust path as needed
 
 // ── Icons ────────────────────────────────────────────────────
 const SunIcon = () => (
@@ -58,14 +65,6 @@ const MenuIcon = () => (
     </svg>
 );
 
-// ── Role badge colours ────────────────────────────────────────
-const ROLE_COLORS = {
-    admin: 'bg-red-500/20 text-red-400 border-red-500/40',
-    shopkeeper: 'bg-purple-500/20 text-purple-400 border-purple-500/40',
-    employee: 'bg-blue-500/20 text-blue-400 border-blue-500/40',
-    user: 'bg-green-500/20 text-green-400 border-green-500/40',
-};
-
 // ── Drawer overlay ────────────────────────────────────────────
 const Drawer = ({ open, onClose, children }) => (
     <>
@@ -87,12 +86,10 @@ const Drawer = ({ open, onClose, children }) => (
     </>
 );
 
-// ── Header ────────────────────────────────────────────────────
 const Header = ({ theme, toggleTheme, category, setCategory }) => {
     const { totalItems } = useContext(CartContext);
     const { wishlist } = useContext(WishlistContext);
-    const { user, logout, isLoggedIn, isAdmin,
-        isShopkeeper, isEmployee } = useAuth();
+    const { user, logout, isLoggedIn, isAdmin, isShopkeeper, isEmployee } = useAuth();
     const navigate = useNavigate();
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -102,7 +99,6 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
         'Electronics', 'Fragrances', 'Bags & Purses', 'Toys & Games', 'Home & Kitchen',
     ];
 
-    // Close user dropdown when clicking outside
     useEffect(() => {
         const handler = (e) => {
             if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
@@ -113,7 +109,6 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    // Lock body scroll when drawer is open
     useEffect(() => {
         document.body.style.overflow = drawerOpen ? 'hidden' : '';
         return () => { document.body.style.overflow = ''; };
@@ -141,7 +136,6 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
 
     return (
         <>
-            {/* ── Top bar ── */}
             <header
                 className="sticky top-0 z-30"
                 style={{
@@ -149,31 +143,38 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                     borderBottom: '1px solid var(--border-color)',
                 }}
             >
-                <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
+                <div className="px-4 h-16 sm:h-20 flex items-center justify-between relative">
 
-                    {/* Hamburger (mobile only) */}
-                    <button
-                        onClick={() => setDrawerOpen(true)}
-                        className="md:hidden p-2 -ml-2 hover:text-accent-gold transition-colors"
-                        aria-label="Open menu"
-                    >
-                        <MenuIcon />
-                    </button>
+                    {/* ─── MOBILE/TABLET: Left (Hamburger) ─── */}
+                    <div className="flex items-center lg:hidden flex-1 justify-start mobile-logo">
+                        <button
+                            onClick={() => setDrawerOpen(true)}
+                            className="p-2 -ml-2 hover:text-accent-gold transition-colors"
+                            aria-label="Open menu"
+                        >
+                            <MenuIcon />
+                        </button>
+                    </div>
 
-                    {/* Logo */}
-                    <Link
-                        to="/"
-                        className="text-2xl md:text-3xl font-serif text-accent-gold flex-shrink-0"
-                        style={{ fontFamily: "'Playfair Display', serif" }}
-                    >
-                        Charming
-                    </Link>
+                    {/* ─── MOBILE/TABLET: Center (Logo) ─── */}
+                    <div className="lg:hidden flex justify-center tab-logo items-center">
+                        <Link to="/">
+                            Charming
+                        </Link>
+                    </div>
 
-                    {/* Desktop category nav */}
-                    <nav className="hidden md:flex items-center gap-1 flex-1 justify-center flex-wrap">
+                    {/* ─── DESKTOP: Left (Logo) ─── */}
+                    <div className="hidden lg:flex flex-1 justify-start items-center pc-logo">
+                        <Link to="/" className="flex-shrink-0">
+                            Charming
+                        </Link>
+                    </div>
+
+                    {/* ─── DESKTOP: Center (Navigation) ─── */}
+                    <nav className="hidden lg:flex justify-center items-center gap-4 xl:gap-8">
                         <button
                             onClick={() => handleCategoryClick('')}
-                            className={`px-3 py-1.5 text-sm font-semibold transition-colors rounded ${category === ''
+                            className={`text-xs xl:text-sm font-semibold tracking-wider uppercase transition-colors ${category === ''
                                 ? 'text-accent-gold'
                                 : 'text-text-secondary hover:text-text-primary'
                                 }`}
@@ -184,8 +185,8 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                             <button
                                 key={cat}
                                 onClick={() => handleCategoryClick(cat)}
-                                className={`px-3 py-1.5 text-sm font-semibold transition-colors rounded whitespace-nowrap ${category === cat
-                                    ? 'text-accent-gold underline underline-offset-4'
+                                className={`text-xs xl:text-sm font-semibold tracking-wider uppercase transition-colors whitespace-nowrap ${category === cat
+                                    ? 'text-accent-gold underline underline-offset-8 decoration-2'
                                     : 'text-text-secondary hover:text-text-primary'
                                     }`}
                             >
@@ -194,140 +195,84 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                         ))}
                     </nav>
 
-                    {/* Right controls */}
-                    <div className="flex items-center gap-2 sm:gap-3">
-                        {/* Theme toggle */}
+                    {/* ─── DESKTOP & MOBILE: Right (Icons) ─── */}
+                    <div className="flex items-center gap-1 sm:gap-4 justify-end flex-1">
+
+                        {/* THEME TOGGLE: Hidden on mobile/tablet */}
                         <button
                             onClick={toggleTheme}
-                            className="p-2 hover:text-accent-gold transition-colors"
+                            className="hidden lg:block p-1.5 sm:p-2 hover:text-accent-gold transition-colors"
                             aria-label="Toggle theme"
                         >
                             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
                         </button>
 
-                        {/* Cart — only for end users (or logged out) */}
                         {(!isLoggedIn || user?.role === 'user') && (
-                            <Link
-                                to="/cart"
-                                className="relative p-2 hover:text-accent-gold transition-colors"
-                                aria-label="Cart"
-                            >
-                                <CartIcon />
-                                {totalItems > 0 && (
-                                    <span className="absolute top-0 right-0 bg-accent-gold text-primary-bg
-                                        text-xs font-bold rounded-full w-4 h-4 flex items-center
-                                        justify-center leading-none">
-                                        {totalItems > 9 ? '9+' : totalItems}
-                                    </span>
-                                )}
-                            </Link>
-                        )}
-                        {(!isLoggedIn || user?.role === 'user') && (
-                            <Link
-                                to="/wishlist"
-                                className="relative p-2 hover:text-accent-gold transition-colors"
-                                aria-label="Wishlist"
-                            >
-                                <HeartIcon filled={false} />
-                                {wishlist.length > 0 && (
-                                    <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
-                                        {wishlist.length > 9 ? '9+' : wishlist.length}
-                                    </span>
-                                )}
-                            </Link>
+                            <>
+                                {/* WISHLIST: Hidden on mobile/tablet (lg:block added) */}
+                                <Link to="/wishlist" className="hidden lg:block relative p-1.5 sm:p-2 hover:text-accent-gold transition-colors">
+                                    <HeartIcon filled={false} />
+                                    {wishlist.length > 0 && (
+                                        <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                                            {wishlist.length > 9 ? '9+' : wishlist.length}
+                                        </span>
+                                    )}
+                                </Link>
+
+                                <Link to="/cart" className="relative p-1.5 sm:p-2 hover:text-accent-gold transition-colors">
+                                    <CartIcon />
+                                    {totalItems > 0 && (
+                                        <span className="absolute top-0 right-0 bg-accent-gold text-primary-bg text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                                            {totalItems > 9 ? '9+' : totalItems}
+                                        </span>
+                                    )}
+                                </Link>
+                            </>
                         )}
 
-                        {/* User menu (desktop) */}
                         {isLoggedIn ? (
                             <div className="relative" ref={userMenuRef}>
                                 <button
                                     onClick={() => setUserMenuOpen(o => !o)}
-                                    className="flex items-center gap-2 p-2 hover:text-accent-gold transition-colors"
+                                    className="flex items-center gap-2 p-1.5 sm:p-2 hover:text-accent-gold transition-colors"
                                 >
                                     <UserIcon />
-                                    <span className="hidden sm:block text-sm font-semibold max-w-[90px] truncate">
+                                    <span className="hidden lg:block text-sm font-semibold max-w-[90px] truncate">
                                         {user.name}
-                                    </span>
-                                    {/* Role chip — desktop only */}
-                                    <span className={`hidden lg:block px-2 py-0.5 text-xs font-bold
-                                        border rounded uppercase ${ROLE_COLORS[user.role]}`}>
-                                        {user.role}
                                     </span>
                                 </button>
 
                                 {/* Dropdown */}
                                 {userMenuOpen && (
                                     <div
-                                        className="absolute right-0 top-full mt-1 w-52 shadow-xl z-50"
-                                        style={{
-                                            backgroundColor: 'var(--secondary-bg)',
-                                            border: '1px solid var(--border-color)',
-                                        }}
+                                        className="absolute right-0 top-full mt-3 w-52 shadow-xl z-50 rounded"
+                                        style={{ backgroundColor: 'var(--secondary-bg)', border: '1px solid var(--border-color)' }}
                                     >
-                                        <div className="p-3 border-b border-border-color">
+                                        <div className="p-4 border-b border-border-color">
                                             <p className="font-semibold text-sm truncate">{user.name}</p>
                                             <p className="text-xs text-text-secondary truncate">{user.email}</p>
-                                            <span className={`inline-block mt-1 px-2 py-0.5 text-xs
-                                                font-bold border rounded uppercase ${ROLE_COLORS[user.role]}`}>
-                                                {user.role}
-                                            </span>
                                         </div>
                                         {(isAdmin || isShopkeeper || isEmployee) && (
-                                            <Link
-                                                to={getDashboardPath()}
-                                                onClick={() => setUserMenuOpen(false)}
-                                                className="block px-4 py-2.5 text-sm hover:bg-primary-bg
-                                                    hover:text-accent-gold transition-colors"
-                                            >
+                                            <Link to={getDashboardPath()} onClick={() => setUserMenuOpen(false)} className="block px-4 py-3 text-sm hover:bg-primary-bg hover:text-accent-gold transition-colors">
                                                 Dashboard
                                             </Link>
                                         )}
-                                        <Link
-                                            to="/"
-                                            onClick={() => setUserMenuOpen(false)}
-                                            className="block px-4 py-2.5 text-sm hover:bg-primary-bg
-                                                hover:text-accent-gold transition-colors"
-                                        >
-                                            Shop
+                                        <Link to="/profile" onClick={() => setUserMenuOpen(false)} className="block px-4 py-3 text-sm hover:bg-primary-bg hover:text-accent-gold transition-colors border-t border-border-color">
+                                            My Profile
                                         </Link>
                                         {user?.role === 'user' && (
-                                            <Link
-                                                to="/my-orders"
-                                                onClick={() => setUserMenuOpen(false)}
-                                                className="block px-4 py-2.5 text-sm hover:bg-primary-bg
-                                                    hover:text-accent-gold transition-colors"
-                                            >
+                                            <Link to="/my-orders" onClick={() => setUserMenuOpen(false)} className="block px-4 py-3 text-sm hover:bg-primary-bg hover:text-accent-gold transition-colors">
                                                 My Orders
                                             </Link>
                                         )}
-                                        {user?.role === 'user' && (
-                                            <Link to="/wishlist" onClick={() => setUserMenuOpen(false)}
-                                                className="block px-4 py-2.5 text-sm hover:bg-primary-bg hover:text-accent-gold transition-colors">
-                                                My Wishlist
-                                            </Link>
-                                        )}
-                                        <Link
-                                            to="/profile"
-                                            onClick={() => setUserMenuOpen(false)}
-                                            className="block px-4 py-2.5 text-sm hover:bg-primary-bg hover:text-accent-gold transition-colors"
-                                        >
-                                            My Profile
-                                        </Link>
-                                        <button
-                                            onClick={handleLogout}
-                                            className="w-full text-left px-4 py-2.5 text-sm text-red-400
-                                                hover:bg-primary-bg transition-colors border-t border-border-color"
-                                        >
+                                        <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-primary-bg transition-colors border-t border-border-color">
                                             Sign Out
                                         </button>
                                     </div>
                                 )}
                             </div>
                         ) : (
-                            <Link
-                                to="/login"
-                                className="flex items-center gap-2 p-2 hover:text-accent-gold transition-colors"
-                            >
+                            <Link to="/login" className="flex items-center gap-2 p-1.5 sm:p-2 hover:text-accent-gold transition-colors">
                                 <UserIcon />
                                 <span className="hidden sm:block text-sm font-semibold">Sign In</span>
                             </Link>
@@ -336,60 +281,35 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                 </div>
             </header>
 
-            {/* ── Mobile sliding drawer ── */}
+            {/* Mobile sliding drawer */}
             <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
                 {/* Drawer header */}
-                <div
-                    className="flex items-center justify-between px-5 h-16 flex-shrink-0"
-                    style={{ borderBottom: '1px solid var(--border-color)' }}
-                >
-                    <span
-                        className="text-xl font-serif text-accent-gold"
-                        style={{ fontFamily: "'Playfair Display', serif" }}
-                    >
+                <div className="flex items-center justify-between px-5 h-16 sm:h-20 flex-shrink-0" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <Link to="/" onClick={() => setDrawerOpen(false)}>
                         Charming
-                    </span>
-                    <button
-                        onClick={() => setDrawerOpen(false)}
-                        className="p-2 hover:text-accent-gold transition-colors text-xl leading-none"
-                        aria-label="Close menu"
-                    >
-                        ✕
-                    </button>
+                    </Link>
+                    <button onClick={() => setDrawerOpen(false)} className="p-2 hover:text-accent-gold transition-colors text-xl leading-none">✕</button>
                 </div>
 
-                {/* User info strip */}
                 {isLoggedIn && (
-                    <div
-                        className="px-5 py-4 flex-shrink-0"
-                        style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--primary-bg)' }}
-                    >
+                    <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--primary-bg)' }}>
                         <p className="font-semibold text-sm truncate">{user.name}</p>
                         <p className="text-xs text-text-secondary truncate">{user.email}</p>
-                        <span className={`inline-block mt-2 px-2 py-0.5 text-xs font-bold
-                            border rounded uppercase ${ROLE_COLORS[user.role]}`}>
+                        <span className="inline-block mt-2 px-2 py-0.5 text-[10px] font-bold border rounded uppercase bg-accent-gold/10 text-accent-gold border-accent-gold/40">
                             {user.role}
                         </span>
                     </div>
                 )}
 
-                {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto">
-                    {/* Categories */}
-                    <div className="px-5 py-4">
-                        <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-3">
-                            Shop by Category
-                        </p>
+                    <div className="px-5 py-6">
+                        <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">Shop Categories</p>
                         <div className="space-y-1">
                             {['', ...CATEGORIES].map(cat => (
                                 <button
                                     key={cat || 'all'}
                                     onClick={() => handleCategoryClick(cat)}
-                                    className={`w-full text-left px-3 py-2.5 rounded text-sm font-semibold
-                                        transition-colors ${category === cat
-                                            ? 'bg-accent-gold text-primary-bg'
-                                            : 'hover:bg-primary-bg text-text-primary'
-                                        }`}
+                                    className={`w-full text-left px-4 py-3 rounded text-sm font-semibold uppercase tracking-wider transition-colors ${category === cat ? 'bg-accent-gold text-primary-bg' : 'hover:bg-primary-bg text-text-primary'}`}
                                 >
                                     {cat || 'All Products'}
                                 </button>
@@ -397,108 +317,64 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                         </div>
                     </div>
 
-                    {/* Nav links */}
-                    <div
-                        className="px-5 py-4"
-                        style={{ borderTop: '1px solid var(--border-color)' }}
-                    >
-                        <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-3">
-                            Account
-                        </p>
+                    <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border-color)' }}>
+                        <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-3">Account & Settings</p>
                         <div className="space-y-1">
-                            {isLoggedIn ? (
+                            {isLoggedIn && (
                                 <>
                                     {(isAdmin || isShopkeeper || isEmployee) && (
-                                        <Link
-                                            to={getDashboardPath()}
-                                            onClick={() => setDrawerOpen(false)}
-                                            className="flex items-center gap-3 px-3 py-2.5 rounded text-sm
-                                                font-semibold hover:bg-primary-bg transition-colors"
-                                        >
+                                        <Link to={getDashboardPath()} onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
                                             Dashboard
                                         </Link>
                                     )}
                                     {user?.role === 'user' && (
                                         <>
-                                            <Link
-                                                to="/cart"
-                                                onClick={() => setDrawerOpen(false)}
-                                                className="flex items-center justify-between px-3 py-2.5
-                                                    rounded text-sm font-semibold hover:bg-primary-bg transition-colors"
-                                            >
+                                            <Link to="/cart" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
                                                 <span>My Bag</span>
-                                                {totalItems > 0 && (
-                                                    <span className="bg-accent-gold text-primary-bg text-xs
-                                                        font-bold rounded-full px-2 py-0.5">
-                                                        {totalItems}
-                                                    </span>
-                                                )}
+                                                {totalItems > 0 && <span className="bg-accent-gold text-primary-bg text-xs font-bold rounded-full px-2 py-0.5">{totalItems}</span>}
                                             </Link>
-                                            <Link
-                                                to="/my-orders"
-                                                onClick={() => setDrawerOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded
-                                                    text-sm font-semibold hover:bg-primary-bg transition-colors"
-                                            >
+                                            <Link to="/my-orders" onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
                                                 My Orders
                                             </Link>
-                                            <Link
-                                                to="/wishlist"
-                                                onClick={() => setDrawerOpen(false)}
-                                                className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors"
-                                            >
+                                            <Link to="/wishlist" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
                                                 <span>Wishlist</span>
-                                                {wishlist.length > 0 && (
-                                                    <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">
-                                                        {wishlist.length}
-                                                    </span>
-                                                )}
+                                                {wishlist.length > 0 && <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{wishlist.length}</span>}
                                             </Link>
-                                            <Link
-                                                to="/profile"
-                                                onClick={() => setDrawerOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors"
-                                            >
+                                            <Link to="/profile" onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
                                                 My Profile
                                             </Link>
                                         </>
                                     )}
                                 </>
-                            ) : (
-                                <Link
-                                    to="/login"
-                                    onClick={() => setDrawerOpen(false)}
-                                    className="flex items-center gap-3 px-3 py-2.5 rounded text-sm
-                                        font-semibold hover:bg-primary-bg transition-colors text-accent-gold"
-                                >
-                                    Sign In / Register
+                            )}
+
+                            {/* Wishlist Link for logged-out users, so they don't lose access when it's hidden from mobile top nav */}
+                            {!isLoggedIn && (
+                                <Link to="/wishlist" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
+                                    <span>Wishlist</span>
+                                    {wishlist.length > 0 && <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{wishlist.length}</span>}
                                 </Link>
                             )}
+
+                            {/* Theme Toggle */}
+                            <button onClick={() => { toggleTheme(); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors text-text-primary mt-2">
+                                {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+                                {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                {/* Drawer footer */}
-                <div
-                    className="px-5 py-4 flex-shrink-0 space-y-3"
-                    style={{ borderTop: '1px solid var(--border-color)' }}
-                >
-                    <button
-                        onClick={() => { toggleTheme(); }}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded text-sm
-                            font-semibold hover:bg-primary-bg transition-colors"
-                    >
-                        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-                        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                    </button>
-                    {isLoggedIn && (
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center gap-3 w-full px-3 py-2.5 rounded text-sm
-                                font-semibold text-red-400 hover:bg-primary-bg transition-colors"
-                        >
+                {/* Sticky Footer exclusively holding the Authentication action */}
+                <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid var(--border-color)', backgroundColor: 'var(--secondary-bg)' }}>
+                    {isLoggedIn ? (
+                        <button onClick={handleLogout} className="flex items-center justify-center gap-3 w-full px-4 py-3 rounded text-sm font-bold bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors border border-red-500/20">
                             Sign Out
                         </button>
+                    ) : (
+                        <Link to="/login" onClick={() => setDrawerOpen(false)} className="flex items-center justify-center gap-3 w-full px-4 py-3 rounded text-sm font-bold bg-accent-gold text-primary-bg hover:bg-yellow-500 transition-colors uppercase tracking-wider">
+                            Sign In / Register
+                        </Link>
                     )}
                 </div>
             </Drawer>
@@ -512,6 +388,7 @@ const ProductCard = ({ product }) => {
     const { isLoggedIn } = useAuth();
     const navigate = useNavigate();
     const [heartAnim, setHeartAnim] = useState(false);
+    const [imgLoaded, setImgLoaded] = useState(false);
 
     const wishlisted = isWishlisted(product._id);
 
@@ -522,6 +399,10 @@ const ProductCard = ({ product }) => {
         setHeartAnim(true);
         await toggle(product._id);
         setTimeout(() => setHeartAnim(false), 400);
+    };
+
+    const saveScrollPosition = () => {
+        sessionStorage.setItem('homeScrollPos', window.scrollY);
     };
 
     const avgRating = product.avgRating || 0;
@@ -557,23 +438,26 @@ const ProductCard = ({ product }) => {
                 <HeartIcon filled={wishlisted} />
             </button>
 
-            <div className="relative overflow-hidden">
-                <Link to={`/product/${product._id}`}>
+            <div className="relative overflow-hidden aspect-square bg-border-color">
+                {!imgLoaded && (
+                    <div className="absolute inset-0 bg-border-color animate-pulse" />
+                )}
+                <Link to={`/product/${product._id}`} onClick={saveScrollPosition}>
                     <img
-                        src={product.images?.[0] ||
-                            'https://placehold.co/400x400/222222/D4AF37?text=Charming'}
+                        src={product.images?.[0] || 'https://placehold.co/400x400/222222/D4AF37?text=Charming'}
                         alt={product.name}
-                        className="w-full aspect-square object-cover transition-transform
-                            duration-500 group-hover:scale-105"
+                        onLoad={() => setImgLoaded(true)}
+                        className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-in-out group-hover:scale-105 ${imgLoaded ? 'opacity-100 blur-0' : 'opacity-0 blur-sm'
+                            }`}
                     />
                 </Link>
             </div>
 
             <div className="p-3">
-                <Link to={`/product/${product._id}`}>
+                <Link to={`/product/${product._id}`} onClick={saveScrollPosition}>
                     <h3 className="text-sm font-serif hover:text-accent-gold transition-colors
                         line-clamp-2 mb-1"
-                        style={{ fontFamily: "'Playfair Display', serif" }}>
+                        >
                         {product.name}
                     </h3>
                 </Link>
@@ -612,185 +496,274 @@ const SORT_OPTIONS = [
     { value: 'name_asc', label: 'Name: A → Z' },
 ];
 
-const HomePage = ({ products, loading, error, category, search, setSearch,
-    sort, setSort, page, setPage, pagination }) => (
-    <div>
-        {/* Hero */}
-        {!category && !search && page === 1 && (
-            <section className="h-[55vh] bg-gradient-to-br from-gray-900 via-gray-800
-                to-gray-900 flex items-center justify-center text-center px-4">
-                <div>
-                    <h1 className="text-5xl md:text-7xl font-serif text-white drop-shadow-lg"
-                        style={{ fontFamily: "'Playfair Display', serif" }}>
-                        Discover Your Charm
-                    </h1>
-                    <p className="text-xl text-gray-300 mt-4">
-                        Curated collections of luxury and style.
-                    </p>
-                    <Link to="/" className="mt-8 inline-block bg-accent-gold text-primary-bg
-                        px-8 py-3 font-bold uppercase tracking-wider hover:bg-yellow-500
-                        transition-colors">
-                        Shop New Arrivals
-                    </Link>
+const HomePage = ({ products, loading, error, category, setCategory, search, setSearch,
+    sort, setSort, page, setPage, pagination, minPrice, setMinPrice, maxPrice, setMaxPrice, forceRefresh }) => {
+    const [localMin, setLocalMin] = useState(minPrice);
+    const [localMax, setLocalMax] = useState(maxPrice);
+    const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+    useEffect(() => {
+        forceRefresh();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (!loading && products?.length > 0) {
+            const savedScroll = sessionStorage.getItem('homeScrollPos');
+            if (savedScroll) {
+                window.scrollTo(0, parseInt(savedScroll, 10));
+                sessionStorage.removeItem('homeScrollPos');
+            }
+        }
+    }, [loading, products]);
+
+    useEffect(() => {
+        if (window.innerWidth < 1024) {
+            document.body.style.overflow = isMobileFilterOpen ? 'hidden' : '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [isMobileFilterOpen]);
+
+    const applyPriceFilter = () => {
+        setMinPrice(localMin);
+        setMaxPrice(localMax);
+        setIsMobileFilterOpen(false);
+    };
+
+    const clearAllFilters = () => {
+        setSearch('');
+        setCategory('');
+        setMinPrice('');
+        setMaxPrice('');
+        setLocalMin('');
+        setLocalMax('');
+        setIsMobileFilterOpen(false);
+    };
+    return (
+        <div>
+            <SEOTags
+                title="Luxury Curated Collections"
+                description="Discover the finest Kurta Sets, Sherwanis, and luxury accessories at Charming."
+            />
+            {/* Hero */}
+            {!category && !search && !minPrice && !maxPrice && page === 1 && (
+                <section className="h-[55vh] bg-gradient-to-br from-gray-900 via-gray-800
+                    to-gray-900 flex items-center justify-center text-center px-4 relative overflow-hidden">
+                    <div className="relative z-10">
+                        <h1 className="text-5xl md:text-7xl font-serif text-white drop-shadow-lg"
+                            >
+                            Discover Your Charm
+                        </h1>
+                        <p className="text-xl text-gray-300 mt-4">
+                            Curated collections of luxury and style.
+                        </p>
+                        <button
+                            onClick={() => { clearAllFilters(); setSearch('New Arrival'); }}
+                            className="mt-8 inline-block bg-accent-gold text-primary-bg
+                            px-8 py-3 font-bold uppercase tracking-wider hover:bg-yellow-500
+                            transition-colors">
+                            Shop New Arrivals
+                        </button>
+                    </div>
+                </section>
+            )}
+
+            <section className="container mx-auto py-10 px-4">
+
+                {/* Mobile/Tablet Search */}
+                <div className="relative w-full mb-8 lg:hidden">
+                    <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35" />
+                    </svg>
+                    <input
+                        type="text" value={search} onChange={e => setSearch(e.target.value)}
+                        placeholder="Search products..."
+                        className="w-full pl-11 pr-10 py-3 bg-secondary-bg border border-border-color rounded-full focus:outline-none focus:border-accent-gold text-sm"
+                    />
+                </div>
+
+                {/* Toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 pb-4 border-b border-border-color">
+                    <div>
+                        <h2 className="text-3xl font-serif" >
+                            {search ? `Results for "${search}"` : category || 'All Collection'}
+                        </h2>
+                        <p className="text-sm text-text-secondary mt-1">Showing {pagination.total} styles</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+                        {(search || category || minPrice || maxPrice) && (
+                            <button onClick={clearAllFilters} className="text-xs text-red-400 hover:text-red-500 font-bold uppercase tracking-wider transition-colors hidden sm:block">
+                                Clear Filters ✕
+                            </button>
+                        )}
+
+                        {/* NEW: Mobile Filter Button */}
+                        <button
+                            onClick={() => setIsMobileFilterOpen(true)}
+                            className="lg:hidden flex items-center gap-2 p-2.5 bg-secondary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+                            Filters
+                            {(minPrice || maxPrice) && (
+                                <span className="w-2 h-2 rounded-full bg-accent-gold"></span>
+                            )}
+                        </button>
+
+                        <select
+                            value={sort} onChange={e => setSort(e.target.value)}
+                            className="p-2.5 pr-8 bg-secondary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold cursor-pointer appearance-none flex-1 sm:flex-none"
+                            style={{
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                                backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center'
+                            }}
+                        >
+                            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex flex-col lg:flex-row gap-8">
+
+                    {/* ─── MOBILE FILTER BACKDROP ─── */}
+                    {isMobileFilterOpen && (
+                        <div
+                            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+                            onClick={() => setIsMobileFilterOpen(false)}
+                        />
+                    )}
+
+                    {/* ─── SIDEBAR FILTERS (Drawer on Mobile, Static on Desktop) ─── */}
+                    <aside className={`
+                        fixed inset-y-0 left-0 z-50 w-[85vw] sm:w-80 bg-primary-bg p-6 overflow-y-auto
+                        transition-transform duration-300 ease-in-out transform
+                        ${isMobileFilterOpen ? 'translate-x-0' : '-translate-x-full'}
+                        lg:static lg:z-auto lg:w-64 lg:p-0 lg:bg-transparent lg:translate-x-0 lg:flex-shrink-0 lg:space-y-8
+                    `}>
+
+                        {/* Mobile Drawer Header */}
+                        <div className="flex items-center justify-between lg:hidden mb-8 border-b border-border-color pb-4">
+                            <h2 className="text-xl font-serif" >Filters</h2>
+                            <button onClick={() => setIsMobileFilterOpen(false)} className="p-2 hover:text-accent-gold text-xl">✕</button>
+                        </div>
+
+                        {/* Desktop Search */}
+                        <div className="hidden lg:block relative w-full mb-8 lg:mb-0">
+                            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35" /></svg>
+                            <input
+                                type="text" value={search} onChange={e => setSearch(e.target.value)}
+                                placeholder="Search..."
+                                className="w-full pl-9 pr-3 py-2 bg-transparent border-b border-border-color focus:border-accent-gold focus:outline-none text-sm transition-colors"
+                            />
+                        </div>
+
+                        {/* Price Filter */}
+                        <div className="mb-8 lg:mb-0">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-text-secondary mb-3">Filter by Price</h3>
+                            <div className="flex items-center gap-2 mb-3">
+                                <input
+                                    type="number" placeholder="Min ₹" value={localMin} onChange={e => setLocalMin(e.target.value)}
+                                    className="w-full p-2 bg-primary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold"
+                                />
+                                <span className="text-text-secondary">-</span>
+                                <input
+                                    type="number" placeholder="Max ₹" value={localMax} onChange={e => setLocalMax(e.target.value)}
+                                    className="w-full p-2 bg-primary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold"
+                                />
+                            </div>
+                            <button
+                                onClick={applyPriceFilter}
+                                className="w-full py-2 border border-accent-gold text-accent-gold font-bold text-xs uppercase tracking-wider hover:bg-accent-gold hover:text-primary-bg transition-colors rounded">
+                                Apply Price
+                            </button>
+                        </div>
+
+                        {/* Mobile Clear Filters Button */}
+                        {(search || category || minPrice || maxPrice) && (
+                            <div className="lg:hidden mt-8 pt-4 border-t border-border-color">
+                                <button onClick={clearAllFilters} className="w-full py-3 text-sm text-red-400 border border-red-400/40 rounded font-bold uppercase tracking-wider transition-colors hover:bg-red-400/10">
+                                    Clear All Filters
+                                </button>
+                            </div>
+                        )}
+                    </aside>
+
+                    {/* ─── PRODUCT GRID ─── */}
+                    <div className="flex-1">
+                        {loading && (
+                            <div className="text-center py-20">
+                                <div className="inline-block w-8 h-8 border-2 border-accent-gold border-t-transparent rounded-full animate-spin mb-4" />
+                                <p className="text-text-secondary">Loading collections...</p>
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="text-center py-20 text-red-400">
+                                <p>{error}</p>
+                            </div>
+                        )}
+
+                        {!loading && !error && products.length === 0 && (
+                            <div className="text-center py-20 bg-secondary-bg border border-border-color">
+                                <p className="text-text-secondary text-lg mb-3">No styles match your filters.</p>
+                                <button onClick={clearAllFilters} className="text-accent-gold text-sm font-bold hover:underline">
+                                    Clear all filters
+                                </button>
+                            </div>
+                        )}
+
+                        {!loading && (
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+                                {products?.map(product => (
+                                    <ProductCard key={product._id} product={product} />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Pagination */}
+                        {!loading && pagination.pages > 1 && (
+                            <div className="flex items-center justify-center gap-2 mt-12 flex-wrap">
+                                <button
+                                    onClick={() => { setPage(p => p - 1); window.scrollTo({ top: 0 }); }}
+                                    disabled={page === 1}
+                                    className="px-4 py-2 border border-border-color text-sm font-semibold hover:border-accent-gold hover:text-accent-gold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    ← Prev
+                                </button>
+
+                                {Array.from({ length: pagination.pages }, (_, i) => i + 1)
+                                    .filter(n => n === 1 || n === pagination.pages || Math.abs(n - page) <= 1)
+                                    .reduce((acc, n, i, arr) => {
+                                        if (i > 0 && n - arr[i - 1] > 1) acc.push('...');
+                                        acc.push(n);
+                                        return acc;
+                                    }, [])
+                                    .map((n, i) => n === '...' ? (
+                                        <span key={`dot${i}`} className="px-2 text-text-secondary">…</span>
+                                    ) : (
+                                        <button key={n}
+                                            onClick={() => { setPage(n); window.scrollTo({ top: 0 }); }}
+                                            className={`w-9 h-9 text-sm font-bold border transition-colors ${page === n ? 'bg-accent-gold text-primary-bg border-accent-gold' : 'border-border-color hover:border-accent-gold hover:text-accent-gold'}`}>
+                                            {n}
+                                        </button>
+                                    ))
+                                }
+
+                                <button
+                                    onClick={() => { setPage(p => p + 1); window.scrollTo({ top: 0 }); }}
+                                    disabled={page === pagination.pages}
+                                    className="px-4 py-2 border border-border-color text-sm font-semibold hover:border-accent-gold hover:text-accent-gold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    Next →
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </section>
-        )}
-
-        <section className="container mx-auto py-10 px-4">
-            {/* Search bar */}
-            <div className="relative max-w-xl mx-auto mb-8">
-                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4
-                    text-text-secondary pointer-events-none"
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <circle cx="11" cy="11" r="8" />
-                    <path strokeLinecap="round" strokeLinejoin="round"
-                        strokeWidth={2} d="M21 21l-4.35-4.35" />
-                </svg>
-                <input
-                    type="text"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search products..."
-                    className="w-full pl-11 pr-10 py-3 bg-secondary-bg border border-border-color
-                        rounded-full focus:outline-none focus:border-accent-gold transition-colors
-                        text-sm"
-                />
-                {search && (
-                    <button onClick={() => setSearch('')}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-text-secondary
-                            hover:text-text-primary text-lg leading-none">
-                        ✕
-                    </button>
-                )}
-            </div>
-
-            {/* Toolbar: title + count + sort */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-                <div>
-                    <h2 className="text-2xl font-serif"
-                        style={{ fontFamily: "'Playfair Display', serif" }}>
-                        {search ? `Results for "${search}"` : category || 'All Products'}
-                    </h2>
-                    <p className="text-sm text-text-secondary mt-0.5">
-                        {pagination.total} product{pagination.total !== 1 ? 's' : ''}
-                    </p>
-                </div>
-                <div className="flex items-center gap-3">
-                    {(search || category) && (
-                        <button onClick={() => setSearch('')}
-                            className="text-xs text-text-secondary hover:text-accent-gold
-                                underline transition-colors">
-                            Clear filters
-                        </button>
-                    )}
-                    <select
-                        value={sort}
-                        onChange={e => setSort(e.target.value)}
-                        className="p-2 pr-8 bg-secondary-bg border border-border-color rounded
-                            text-sm focus:outline-none focus:border-accent-gold transition-colors
-                            appearance-none cursor-pointer"
-                        style={{
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'right 8px center'
-                        }}
-                    >
-                        {SORT_OPTIONS.map(o => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-
-            {/* Loading */}
-            {loading && (
-                <div className="text-center py-16">
-                    <div className="inline-block w-8 h-8 border-2 border-accent-gold
-                        border-t-transparent rounded-full animate-spin mb-4"/>
-                    <p className="text-text-secondary">Loading products...</p>
-                </div>
-            )}
-
-            {/* Error */}
-            {error && (
-                <div className="text-center py-16">
-                    <p className="text-red-400 mb-2">{error}</p>
-                    <p className="text-text-secondary text-sm">
-                        Make sure the backend server is running.
-                    </p>
-                </div>
-            )}
-
-            {/* Empty */}
-            {!loading && !error && products.length === 0 && (
-                <div className="text-center py-16">
-                    <p className="text-text-secondary text-lg mb-3">No products found.</p>
-                    <button onClick={() => setSearch('')}
-                        className="text-accent-gold text-sm hover:underline">
-                        Clear search
-                    </button>
-                </div>
-            )}
-
-            {/* Grid */}
-            {!loading && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                    {products.map(product => (
-                        <ProductCard key={product._id} product={product} />
-                    ))}
-                </div>
-            )}
-
-            {/* Pagination */}
-            {!loading && pagination.pages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-12 flex-wrap">
-                    <button
-                        onClick={() => { setPage(p => p - 1); window.scrollTo({ top: 0 }); }}
-                        disabled={page === 1}
-                        className="px-4 py-2 border border-border-color text-sm font-semibold
-                            hover:border-accent-gold hover:text-accent-gold transition-colors
-                            disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        ← Prev
-                    </button>
-
-                    {Array.from({ length: pagination.pages }, (_, i) => i + 1)
-                        .filter(n => n === 1 || n === pagination.pages ||
-                            Math.abs(n - page) <= 1)
-                        .reduce((acc, n, i, arr) => {
-                            if (i > 0 && n - arr[i - 1] > 1) acc.push('...');
-                            acc.push(n);
-                            return acc;
-                        }, [])
-                        .map((n, i) => n === '...' ? (
-                            <span key={`dot${i}`}
-                                className="px-2 text-text-secondary">…</span>
-                        ) : (
-                            <button key={n}
-                                onClick={() => { setPage(n); window.scrollTo({ top: 0 }); }}
-                                className={`w-9 h-9 text-sm font-bold border transition-colors ${page === n
-                                    ? 'bg-accent-gold text-primary-bg border-accent-gold'
-                                    : 'border-border-color hover:border-accent-gold hover:text-accent-gold'
-                                    }`}>
-                                {n}
-                            </button>
-                        ))
-                    }
-
-                    <button
-                        onClick={() => { setPage(p => p + 1); window.scrollTo({ top: 0 }); }}
-                        disabled={page === pagination.pages}
-                        className="px-4 py-2 border border-border-color text-sm font-semibold
-                            hover:border-accent-gold hover:text-accent-gold transition-colors
-                            disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        Next →
-                    </button>
-                </div>
-            )}
-        </section>
-    </div>
-);
+        </div>
+    )
+};
 
 // ── Root App (with providers) ─────────────────────────────────
 export default function App() {
@@ -802,6 +775,9 @@ export default function App() {
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState('newest');
     const [page, setPage] = useState(1);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [minPrice, setMinPrice] = useState('');
+    const [maxPrice, setMaxPrice] = useState('');
     const [pagination, setPagination] = useState({ pages: 1, total: 0 });
 
     useEffect(() => {
@@ -827,6 +803,8 @@ export default function App() {
                     sort,
                     ...(category && { category }),
                     ...(search && { search }),
+                    ...(minPrice && { minPrice }),
+                    ...(maxPrice && { maxPrice }),
                 });
                 const { data } = await api.get(`/api/products?${params}`);
                 setProducts(data.products);
@@ -837,9 +815,9 @@ export default function App() {
             setLoading(false);
         };
         fetchProducts();
-    }, [page, sort, category, search]);
+    }, [page, sort, category, search, minPrice, maxPrice, refreshTrigger]);
 
-    useEffect(() => { setPage(1); }, [category, search, sort]);
+    useEffect(() => { setPage(1); }, [category, search, sort, minPrice, maxPrice]);
 
     const themeStyles = useMemo(() => `
         :root[data-theme='dark'] {
@@ -885,46 +863,84 @@ export default function App() {
     `, []);
 
     return (
-        <AuthProvider>
-            <CartProvider>
-                <WishlistProvider>
-                    <Router>
-                        <style>{`
+        <HelmetProvider>
+            <AuthProvider>
+                <CartProvider>
+                    <WishlistProvider>
+                        <Router>
+                            <style>{`
                         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Playfair+Display:wght@700&display=swap');
                         ${themeStyles}
                         `}</style>
 
-                        <AppRoutes
-                            theme={theme}
-                            toggleTheme={toggleTheme}
-                            products={products}
-                            loading={loading}
-                            error={error}
-                            category={category}
-                            setCategory={setCategory}
-                            search={search}
-                            setSearch={setSearch}
-                            sort={sort}
-                            setSort={setSort}
-                            page={page}
-                            setPage={setPage}
-                            pagination={pagination}
-                        />
-                    </Router>
-                </WishlistProvider>
-            </CartProvider>
-        </AuthProvider>
+                            <Toaster
+                                position="top-center"
+                                reverseOrder={false}
+                                toastOptions={{
+                                    // Default styling for all toasts
+                                    style: {
+                                        background: 'var(--secondary-bg)',
+                                        color: 'var(--text-primary)',
+                                        border: '1px solid var(--border-color)',
+                                        fontFamily: "'Montserrat', sans-serif",
+                                        fontSize: '14px',
+                                    },
+                                    // Specific styling for success toasts
+                                    success: {
+                                        iconTheme: {
+                                            primary: 'var(--accent-gold)',
+                                            secondary: 'var(--primary-bg)',
+                                        },
+                                    },
+                                    // Specific styling for error toasts
+                                    error: {
+                                        style: {
+                                            border: '1px solid #ef4444',
+                                        },
+                                    },
+                                }}
+                            />
+
+                            <AppRoutes
+                                theme={theme}
+                                toggleTheme={toggleTheme}
+                                products={products}
+                                loading={loading}
+                                error={error}
+                                category={category}
+                                setCategory={setCategory}
+                                search={search}
+                                setSearch={setSearch}
+                                sort={sort}
+                                setSort={setSort}
+                                page={page}
+                                setPage={setPage}
+                                pagination={pagination}
+                                minPrice={minPrice}
+                                setMinPrice={setMinPrice}
+                                maxPrice={maxPrice}
+                                setMaxPrice={setMaxPrice}
+                                setRefreshTrigger={setRefreshTrigger}
+                            />
+                        </Router>
+                    </WishlistProvider>
+                </CartProvider>
+            </AuthProvider>
+        </HelmetProvider>
     );
 }
 
 // Separate so we can use useNavigate inside Router context
-function AppRoutes({ theme, toggleTheme, products, loading, error, category, setCategory, search, setSearch, sort, setSort, page, setPage, pagination }) {
+function AppRoutes({ theme, toggleTheme, products, loading, error, category, setCategory, search, setSearch, sort, setSort, page, setPage, pagination, minPrice, setMinPrice, maxPrice, setMaxPrice, setRefreshTrigger }) {
 
     return (
         <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--primary-bg)', color: 'var(--text-primary)' }}>
             <Routes>
                 {/* Login page — full screen, no header */}
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+                <Route path="/verify-email" element={<OTPVerificationPage />} />
 
                 {/* All other routes — with header */}
                 <Route path="/*" element={
@@ -938,6 +954,7 @@ function AppRoutes({ theme, toggleTheme, products, loading, error, category, set
                                         loading={loading}
                                         error={error}
                                         category={category}
+                                        setCategory={setCategory}
                                         search={search}
                                         setSearch={setSearch}
                                         sort={sort}
@@ -945,6 +962,11 @@ function AppRoutes({ theme, toggleTheme, products, loading, error, category, set
                                         page={page}
                                         setPage={setPage}
                                         pagination={pagination}
+                                        minPrice={minPrice}
+                                        setMinPrice={setMinPrice}
+                                        maxPrice={maxPrice}
+                                        setMaxPrice={setMaxPrice}
+                                        forceRefresh={() => setRefreshTrigger(prev => prev + 1)}
                                     />
                                 } />
                                 <Route path="/cart" element={<CartPage />} />
@@ -999,13 +1021,30 @@ function AppRoutes({ theme, toggleTheme, products, loading, error, category, set
                                         <ProfilePage />
                                     </ProtectedRoute>
                                 } />
+                                <Route path="/terms" element={<TermsOfService />} />
+                                <Route path="/privacy" element={<PrivacyPolicy />} />
+                                <Route path="/shipping" element={<ShippingPolicy />} />
+                                <Route path="/refund" element={<RefundPolicy />} />
 
                                 {/* Catch-all */}
                                 <Route path="*" element={<Navigate to="/" replace />} />
                             </Routes>
                         </main>
-                        <footer style={{ backgroundColor: 'var(--secondary-bg)', borderTop: '1px solid var(--border-color)' }} className="text-center p-8 mt-auto">
-                            <p className="text-text-secondary text-sm">&copy; 2025 Charming. All Rights Reserved.</p>
+                        <footer style={{ backgroundColor: 'var(--secondary-bg)', borderTop: '1px solid var(--border-color)' }} className="py-8 px-4 mt-auto">
+                            <div className="max-w-4xl mx-auto flex flex-col items-center gap-6">
+                                {/* Top Row: Legal Links */}
+                                <div className="flex flex-wrap justify-center gap-4 sm:gap-8 text-sm font-semibold">
+                                    <Link to="/terms" className="text-text-secondary hover:text-accent-gold transition-colors">Terms of Service</Link>
+                                    <Link to="/privacy" className="text-text-secondary hover:text-accent-gold transition-colors">Privacy Policy</Link>
+                                    <Link to="/shipping" className="text-text-secondary hover:text-accent-gold transition-colors">Shipping Policy</Link>
+                                    <Link to="/refund" className="text-text-secondary hover:text-accent-gold transition-colors">Cancellation & Refund</Link>
+                                </div>
+                                
+                                {/* Bottom Row: Copyright */}
+                                <p className="text-text-secondary text-sm text-center">
+                                    &copy; {new Date().getFullYear()} Charming. All Rights Reserved.
+                                </p>
+                            </div>
                         </footer>
                     </>
                 } />

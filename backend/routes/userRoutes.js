@@ -2,6 +2,8 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { protect, adminOnly, shopkeeperAndAbove } from '../middleware/authMiddleware.js';
+import crypto from 'crypto';
+import { sendPasswordResetEmail, sendEmail } from '../utils/emailService.js';
 
 const router = express.Router();
 
@@ -30,12 +32,33 @@ router.post('/register', async (req, res) => {
 
         const user = await User.create({ name, email, password, role: 'user' });
 
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.otp = otp;
+        user.otpExpire = Date.now() + 10 * 60 * 1000; // 10 mins
+        await user.save();
+
+        try {
+            await sendEmail({
+                to: user.email,
+                subject: 'Verify your Charming Account',
+                html: `
+                    <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
+                        <h2>Welcome to Charming!</h2>
+                        <p>Your verification code is:</p>
+                        <h1 style="color: #d4af37; letter-spacing: 5px;">${otp}</h1>
+                        <p>This code will expire in 10 minutes.</p>
+                    </div>
+                `,
+            });
+        } catch (error) {
+            console.error("Email failed to send:", error);
+        }
+
         res.status(201).json({
-            _id: user._id,
-            name: user.name,
+            success: true,
+            requiresVerification: true,
             email: user.email,
-            role: user.role,
-            token: generateToken(user._id),
+            message: 'Registration successful. Please verify your email.'
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error during registration' });
@@ -63,6 +86,14 @@ router.post('/login', async (req, res) => {
             return res.status(403).json({ message: 'Your account has been deactivated. Contact admin.' });
         }
 
+        if (!user.isVerified) {
+            return res.status(403).json({ 
+                message: 'Please verify your email before logging in.',
+                requiresVerification: true,
+                email: user.email 
+            });
+        }
+
         res.json({
             _id: user._id,
             name: user.name,
@@ -72,6 +103,89 @@ router.post('/login', async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error during login' });
+    }
+});
+
+// @desc    Resend OTP
+// @route   POST /api/users/resend-otp
+// @access  Public
+router.post('/resend-otp', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (user.isVerified) return res.status(400).json({ message: 'Account is already verified' });
+
+        // Check our strict 3-time limit
+        if (user.otpResendCount >= 3) {
+            return res.status(429).json({ message: 'Maximum OTP resend limit reached. Please contact support.' });
+        }
+
+        // Generate new 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.otp = otp;
+        user.otpExpire = Date.now() + 10 * 60 * 1000; // 10 mins
+        user.otpResendCount += 1; // Increment the counter!
+        await user.save();
+
+        // Send Email
+        try {
+            await sendEmail({
+                to: user.email,
+                subject: 'Your New Verification Code',
+                html: `
+                    <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
+                        <h2>Charming</h2>
+                        <p>Here is your new verification code:</p>
+                        <h1 style="color: #d4af37; letter-spacing: 5px;">${otp}</h1>
+                        <p>This code will expire in 10 minutes.</p>
+                    </div>
+                `,
+            });
+        } catch (error) {
+            console.error("Email failed to send:", error);
+        }
+
+        // Return the number of attempts left to the frontend
+        res.json({ message: 'OTP resent successfully', attemptsLeft: 3 - user.otpResendCount });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error during OTP resend' });
+    }
+});
+
+// @desc    Verify OTP
+// @route   POST /api/users/verify-otp
+// @access  Public
+router.post('/verify-otp', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (user.isVerified) return res.status(400).json({ message: 'Account is already verified' });
+
+        if (user.otp !== otp || user.otpExpire < Date.now()) {
+            return res.status(400).json({ message: 'Invalid or expired OTP' });
+        }
+
+        // Success! Verify user and clear OTP
+        user.isVerified = true;
+        user.otp = undefined;
+        user.otpExpire = undefined;
+        user.unverifiedExpireAt = undefined;
+        await user.save();
+
+        // Log them in
+        res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            token: generateToken(user._id),
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error during verification' });
     }
 });
 
@@ -138,8 +252,16 @@ router.get('/wishlist', protect, async (req, res) => {
 // @access  Private/Admin
 router.get('/', protect, adminOnly, async (req, res) => {
     try {
-        const users = await User.find({}).select('-password').sort({ createdAt: -1 });
-        res.json(users);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+
+        const [users, total] = await Promise.all([
+            User.find({}).select('-password').sort({ createdAt: -1 }).skip(skip).limit(limit),
+            User.countDocuments({})
+        ]);
+
+        res.json({ users, page, pages: Math.ceil(total / limit), total });
     } catch (error) {
         res.status(500).json({ message: 'Server error fetching users' });
     }
@@ -340,5 +462,79 @@ router.post('/wishlist/:productId', protect, async (req, res) => {
     }
 });
 
+// @desc    Forgot Password
+// @route   POST /api/users/forgotpassword
+// @access  Public
+router.post('/forgotpassword', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Please provide an email address' });
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            // Return 200 even if user doesn't exist for security (prevents email enumeration)
+            return res.status(200).json({ message: 'If an account exists, a reset email has been sent.' });
+        }
+
+        // Get reset token (generates and hashes it, but doesn't save to DB yet)
+        const resetToken = user.getResetPasswordToken();
+        await user.save({ validateBeforeSave: false });
+
+        // Create reset URL (pointing to your React frontend)
+        const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+        try {
+            await sendPasswordResetEmail(user.email, user.name, resetUrl);
+            res.status(200).json({ message: 'Email sent' });
+        } catch (err) {
+            // If email fails, clear the token from DB so they can try again
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpire = undefined;
+            await user.save({ validateBeforeSave: false });
+            return res.status(500).json({ message: 'Email could not be sent' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// @desc    Reset Password
+// @route   PUT /api/users/resetpassword/:token
+// @access  Public
+router.put('/resetpassword/:token', async (req, res) => {
+    try {
+        // Hash the token from the URL to compare it with the hashed token in DB
+        const resetPasswordToken = crypto
+            .createHash('sha256')
+            .update(req.params.token)
+            .digest('hex');
+
+        // Find user by token AND ensure token hasn't expired
+        const user = await User.findOne({
+            resetPasswordToken,
+            resetPasswordExpire: { $gt: Date.now() },
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired password reset token' });
+        }
+
+        if (!req.body.password || req.body.password.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters' });
+        }
+
+        // Set new password (the pre-save hook in User.js will hash it)
+        user.password = req.body.password;
+        
+        // Clear reset token fields
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+        await user.save();
+
+        res.status(200).json({ message: 'Password reset successful. Please log in.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 export default router;
