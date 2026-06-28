@@ -24,7 +24,11 @@ router.get('/', async (req, res) => {
                 { tags: { $regex: req.query.search, $options: 'i' } },
             ];
         }
-
+        if (req.query.minPrice || req.query.maxPrice) {
+            filter.price = {};
+            if (req.query.minPrice) filter.price.$gte = Number(req.query.minPrice);
+            if (req.query.maxPrice) filter.price.$lte = Number(req.query.maxPrice);
+        }
         // Build sort
         const SORT_MAP = {
             newest: { createdAt: -1 },
