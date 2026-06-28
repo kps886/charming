@@ -140,7 +140,7 @@ const OTPVerificationPage = () => {
                                     onChange={(e) => handleChange(index, e)}
                                     onKeyDown={(e) => handleKeyDown(index, e)}
                                     onPaste={handlePaste}
-                                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold bg-primary-bg border border-border-color rounded-xl focus:outline-none focus:border-accent-gold transition-colors text-text-primary"
+                                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold bg-primary-bg border border-border-color rounded-xl focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors text-text-primary"
                                 />
                             ))}
                         </div>

@@ -124,7 +124,7 @@ const LoginPage = () => {
                                     value={formData.name}
                                     onChange={handleChange}
                                     placeholder="Full Name"
-                                    className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
+                                    className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors"
                                 />
                             </div>
                         )}
@@ -141,7 +141,7 @@ const LoginPage = () => {
                                 value={formData.email}
                                 onChange={handleChange}
                                 placeholder="Email Address"
-                                className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
+                                className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors"
                             />
                         </div>
 
@@ -157,7 +157,7 @@ const LoginPage = () => {
                                 value={formData.password}
                                 onChange={handleChange}
                                 placeholder="Password"
-                                className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
+                                className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors"
                             />
                             <button
                                 type="button"
@@ -180,7 +180,7 @@ const LoginPage = () => {
                                     value={formData.confirmPassword}
                                     onChange={handleChange}
                                     placeholder="Confirm Password"
-                                    className="w-full pl-12 pr-12 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
+                                    className="w-full pl-12 pr-12 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors"
                                 />
                                 <button
                                     type="button"
@@ -214,7 +214,7 @@ const LoginPage = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-accent-gold text-primary-bg font-bold py-3 rounded-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-4 text-base uppercase tracking-wider"
+                            className="w-full bg-accent-gold text-primary-bg font-bold py-3 rounded-xl hover:-translate-y-0.5 hover:bg-yellow-500 hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-4 text-base uppercase tracking-wider"
                         >
                             {loading ? 'Please wait...' : (isLogin ? 'Login' : 'Register')}
                         </button>

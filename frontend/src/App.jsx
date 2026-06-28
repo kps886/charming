@@ -22,6 +22,7 @@ import OTPVerificationPage from './login/OTPVerificationPage';
 import { Toaster } from 'react-hot-toast';
 import { HelmetProvider } from 'react-helmet-async';
 import SEOTags from './components/SEOTags';
+import { ProductSkeleton } from './components/Skeleton';
 import { TermsOfService, PrivacyPolicy, ShippingPolicy, RefundPolicy } from './pages/LegalPages'; // Adjust path as needed
 
 // ── Icons ────────────────────────────────────────────────────
@@ -136,13 +137,7 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
 
     return (
         <>
-            <header
-                className="sticky top-0 z-30"
-                style={{
-                    backgroundColor: 'var(--secondary-bg)',
-                    borderBottom: '1px solid var(--border-color)',
-                }}
-            >
+            <header className="sticky top-0 z-30 bg-secondary-bg/80 backdrop-blur-md border-b border-border-color transition-colors duration-300">
                 <div className="px-4 h-16 sm:h-20 flex items-center justify-between relative">
 
                     {/* ─── MOBILE/TABLET: Left (Hamburger) ─── */}
@@ -284,7 +279,7 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
             {/* Mobile sliding drawer */}
             <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
                 {/* Drawer header */}
-                <div className="flex items-center justify-between px-5 h-16 sm:h-20 flex-shrink-0" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                <div className={`fixed top-0 left-0 h-full w-72 max-w-[85vw] z-50 flex flex-col transition-transform duration-300 ease-in-out bg-secondary-bg/90 backdrop-blur-xl border-r border-border-color ${open ? 'translate-x-0' : '-translate-x-full'}`}>
                     <Link to="/" onClick={() => setDrawerOpen(false)}>
                         Charming
                     </Link>
@@ -553,7 +548,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                     to-gray-900 flex items-center justify-center text-center px-4 relative overflow-hidden">
                     <div className="relative z-10">
                         <h1 className="text-5xl md:text-7xl font-serif text-white drop-shadow-lg"
-                            >
+                        >
                             Discover Your Charm
                         </h1>
                         <p className="text-xl text-gray-300 mt-4">
@@ -580,7 +575,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                     <input
                         type="text" value={search} onChange={e => setSearch(e.target.value)}
                         placeholder="Search products..."
-                        className="w-full pl-11 pr-10 py-3 bg-secondary-bg border border-border-color rounded-full focus:outline-none focus:border-accent-gold text-sm"
+                        className="w-full pl-11 pr-10 py-3 bg-secondary-bg border border-border-color rounded-full focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                     />
                 </div>
 
@@ -603,7 +598,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                         {/* NEW: Mobile Filter Button */}
                         <button
                             onClick={() => setIsMobileFilterOpen(true)}
-                            className="lg:hidden flex items-center gap-2 p-2.5 bg-secondary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold"
+                            className="lg:hidden flex items-center gap-2 p-2.5 bg-secondary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                         >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
                             Filters
@@ -614,7 +609,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
 
                         <select
                             value={sort} onChange={e => setSort(e.target.value)}
-                            className="p-2.5 pr-8 bg-secondary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold cursor-pointer appearance-none flex-1 sm:flex-none"
+                            className="p-2.5 pr-8 bg-secondary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 cursor-pointer appearance-none flex-1 sm:flex-none"
                             style={{
                                 backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
                                 backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center'
@@ -655,7 +650,7 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                             <input
                                 type="text" value={search} onChange={e => setSearch(e.target.value)}
                                 placeholder="Search..."
-                                className="w-full pl-9 pr-3 py-2 bg-transparent border-b border-border-color focus:border-accent-gold focus:outline-none text-sm transition-colors"
+                                className="w-full pl-9 pr-3 py-2 bg-transparent border-b border-border-color focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 focus:outline-none text-sm transition-colors"
                             />
                         </div>
 
@@ -665,12 +660,12 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                             <div className="flex items-center gap-2 mb-3">
                                 <input
                                     type="number" placeholder="Min ₹" value={localMin} onChange={e => setLocalMin(e.target.value)}
-                                    className="w-full p-2 bg-primary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold"
+                                    className="w-full p-2 bg-primary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                 />
                                 <span className="text-text-secondary">-</span>
                                 <input
                                     type="number" placeholder="Max ₹" value={localMax} onChange={e => setLocalMax(e.target.value)}
-                                    className="w-full p-2 bg-primary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold"
+                                    className="w-full p-2 bg-primary-bg border border-border-color rounded text-sm focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                 />
                             </div>
                             <button
@@ -693,9 +688,8 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                     {/* ─── PRODUCT GRID ─── */}
                     <div className="flex-1">
                         {loading && (
-                            <div className="text-center py-20">
-                                <div className="inline-block w-8 h-8 border-2 border-accent-gold border-t-transparent rounded-full animate-spin mb-4" />
-                                <p className="text-text-secondary">Loading collections...</p>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+                                {[1, 2, 3, 4, 5, 6].map(n => <ProductSkeleton key={n} />)}
                             </div>
                         )}
 
@@ -951,7 +945,7 @@ function AppRoutes({ theme, toggleTheme, products, loading, error, category, set
                     <Route path="/*" element={
                         <>
                             <Header theme={theme} toggleTheme={toggleTheme} category={category} setCategory={setCategory} />
-                            <main className="flex-grow">
+                            <main className="flex-grow animate-fade-in">
                                 <Routes>
                                     <Route path="/" element={
                                         <HomePage
@@ -1044,7 +1038,7 @@ function AppRoutes({ theme, toggleTheme, products, loading, error, category, set
                                         <Link to="/shipping" className="text-text-secondary hover:text-accent-gold transition-colors">Shipping Policy</Link>
                                         <Link to="/refund" className="text-text-secondary hover:text-accent-gold transition-colors">Cancellation & Refund</Link>
                                     </div>
-                                    
+
                                     {/* Bottom Row: Copyright */}
                                     <p className="text-text-secondary text-sm text-center">
                                         &copy; {new Date().getFullYear()} Charming. All Rights Reserved.

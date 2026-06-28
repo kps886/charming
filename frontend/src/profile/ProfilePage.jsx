@@ -41,7 +41,7 @@ const Field = ({ label, error, children }) => (
 );
 
 const inputCls = (err) =>
-    `w-full p-3 bg-primary-bg border rounded text-sm focus:outline-none focus:border-accent-gold transition-colors ${err ? 'border-red-500' : 'border-border-color'}`;
+    `w-full p-3 bg-primary-bg border rounded text-sm focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors ${err ? 'border-red-500' : 'border-border-color'}`;
 
 // ─────────────────────────────────────────────────────────────
 const ProfilePage = () => {

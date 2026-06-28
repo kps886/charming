@@ -298,7 +298,7 @@ const OrdersPanel = () => {
                                                         }))}
                                                         className="flex-1 p-2 bg-secondary-bg border
                                                         border-border-color rounded text-sm
-                                                        focus:outline-none focus:border-accent-gold"
+                                                        focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                                     >
                                                         {STATUSES.map(s => (
                                                             <option key={s} value={s} className="capitalize">{s}</option>
@@ -314,7 +314,7 @@ const OrdersPanel = () => {
                                                         }))}
                                                         className="flex-1 p-2 bg-secondary-bg border
                                                         border-border-color rounded text-sm
-                                                        focus:outline-none focus:border-accent-gold"
+                                                        focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                                     />
                                                     <button
                                                         onClick={() => handleUpdateStatus(order._id)}
@@ -427,23 +427,23 @@ const ProductsPanel = ({ user }) => {
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <input required type="text" placeholder="Product Name"
                             value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                            className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold text-sm"
+                            className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         />
                         <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                            className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold text-sm">
+                            className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm">
                             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                         <input required type="number" min="0" step="0.01" placeholder="Price (₹)"
                             value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
-                            className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold text-sm"
+                            className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         />
                         <input required type="number" min="0" placeholder="Stock quantity"
                             value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })}
-                            className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold text-sm"
+                            className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         />
                         <textarea required placeholder="Description" rows={3}
                             value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                            className="sm:col-span-2 p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold resize-none text-sm"
+                            className="sm:col-span-2 p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 resize-none text-sm"
                         />
                         <div className="sm:col-span-2">
                             <label className="block text-xs text-text-secondary mb-1">Upload Images</label>
@@ -462,7 +462,7 @@ const ProductsPanel = ({ user }) => {
                         </div>
                         <input type="text" placeholder='Tags: "New Arrival, Bestseller" (comma-separated)'
                             value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })}
-                            className="sm:col-span-2 p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold text-sm"
+                            className="sm:col-span-2 p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         />
                         <div className="sm:col-span-2 flex gap-3">
                             <button type="submit"

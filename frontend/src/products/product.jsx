@@ -58,7 +58,7 @@ const ProductDetailsPage = () => {
     const [reviewLoading, setReviewLoading] = useState(false);
     const [reviewError, setReviewError] = useState('');
     const [reviewSuccess, setReviewSuccess] = useState('');
-    
+
     const fetchProduct = useCallback(async () => {
         try {
             const { data } = await api.get(`/api/products/${id}`);
@@ -70,9 +70,9 @@ const ProductDetailsPage = () => {
     useEffect(() => {
         fetchProduct();
     }, [fetchProduct]);
-    
+
     const cartItem = product ? cartItems.find(x => x._id === product._id) : null;
- 
+
 
     const handleAddToCart = () => {
         addToCart(product);
@@ -126,10 +126,10 @@ const ProductDetailsPage = () => {
 
     return (
         <div className="container mx-auto py-10 px-4 max-w-6xl">
-            <SEOTags 
+            <SEOTags
                 title={product.name}
                 description={product.description}
-                image={product.images?.[0]} 
+                image={product.images?.[0]}
             />
             <Link to="/" className="mb-6 inline-block text-accent-gold hover:underline text-sm">
                 ← Back to Shop
@@ -147,9 +147,8 @@ const ProductDetailsPage = () => {
                                 'https://placehold.co/600x600/222/D4AF37?text=Charming'}
                             alt={product.name}
                             onLoad={() => setImgLoaded(true)}
-                            className={`w-full h-full object-cover transition-opacity duration-500 ${
-                                imgLoaded ? 'opacity-100' : 'opacity-0'
-                            }`}
+                            className={`w-full h-full object-cover transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'
+                                }`}
                         />
                     </div>
                     {product.images?.length > 1 && (
@@ -157,8 +156,8 @@ const ProductDetailsPage = () => {
                             {product.images.map((img, i) => (
                                 <button key={i} onClick={() => { setSelectedImage(i); setImgLoaded(false); }}
                                     className={`w-16 h-16 border-2 overflow-hidden transition-colors ${selectedImage === i
-                                            ? 'border-accent-gold'
-                                            : 'border-border-color hover:border-text-secondary'
+                                        ? 'border-accent-gold'
+                                        : 'border-border-color hover:border-text-secondary'
                                         }`}>
                                     <img src={img} alt="" className="w-full h-full object-cover" />
                                 </button>
@@ -180,7 +179,7 @@ const ProductDetailsPage = () => {
                     </div>
 
                     <h1 className="text-3xl md:text-4xl font-serif mb-2"
-                        >
+                    >
                         {product.name}
                     </h1>
 
@@ -258,13 +257,12 @@ const ProductDetailsPage = () => {
                             <button
                                 onClick={handleAddToCart}
                                 disabled={product.stock === 0}
-                                className={`flex-1 min-w-[160px] h-12 font-bold uppercase tracking-wider transition-all duration-200 text-sm ${
-                                    product.stock === 0
+                                className={`flex-1 min-w-[160px] h-12 font-bold uppercase tracking-wider transition-all duration-300 text-sm hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] ${product.stock === 0
                                         ? 'bg-border-color text-text-secondary cursor-not-allowed'
                                         : added
                                             ? 'bg-green-500 text-white scale-95'
                                             : 'bg-accent-gold text-primary-bg hover:bg-yellow-500'
-                                }`}
+                                    }`}
                             >
                                 {product.stock === 0 ? 'Out of Stock' : added ? '✓ Added!' : 'Add to Bag'}
                             </button>
@@ -299,7 +297,7 @@ const ProductDetailsPage = () => {
             {/* ── Reviews section ── */}
             <div className="max-w-3xl">
                 <h2 className="text-2xl font-serif mb-6 pb-3 border-b border-border-color"
-                    >
+                >
                     Customer Reviews
                     {product.reviewCount > 0 && (
                         <span className="ml-3 text-base text-text-secondary font-sans font-normal">
@@ -336,7 +334,7 @@ const ProductDetailsPage = () => {
                                     }}
                                     placeholder="Share your experience with this product..."
                                     className="w-full p-3 bg-primary-bg border border-border-color
-                                        rounded text-sm focus:outline-none focus:border-accent-gold
+                                        rounded text-sm focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10
                                         transition-colors resize-none"
                                 />
                             </div>

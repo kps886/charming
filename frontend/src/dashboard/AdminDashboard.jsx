@@ -124,13 +124,13 @@ const UsersPanel = ({ currentUserId }) => {
                                 value={newUser[f.key]}
                                 onChange={e => setNewUser({ ...newUser, [f.key]: e.target.value })}
                                 className="p-2 bg-primary-bg border border-border-color rounded
-                                    focus:outline-none focus:border-accent-gold text-sm"
+                                    focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                             />
                         ))}
                         <select value={newUser.role}
                             onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                             className="p-2 bg-primary-bg border border-border-color rounded
-                                focus:outline-none focus:border-accent-gold text-sm"
+                                focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         >
                             {['admin', 'shopkeeper', 'employee', 'user'].map(r => (
                                 <option key={r} value={r} className="capitalize">{r}</option>
@@ -427,7 +427,7 @@ const OrdersPanel = () => {
                                                         }))}
                                                         className="flex-1 p-2 bg-secondary-bg border
                                                         border-border-color rounded text-sm
-                                                        focus:outline-none focus:border-accent-gold"
+                                                        focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                                     >
                                                         {STATUSES.map(s => (
                                                             <option key={s} value={s} className="capitalize">{s}</option>
@@ -446,7 +446,7 @@ const OrdersPanel = () => {
                                                         }))}
                                                         className="flex-1 p-2 bg-secondary-bg border
                                                         border-border-color rounded text-sm
-                                                        focus:outline-none focus:border-accent-gold"
+                                                        focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                                     />
                                                     <button
                                                         onClick={() => handleUpdateStatus(order._id)}
@@ -558,12 +558,12 @@ const PromoPanel = () => {
                             value={form.code}
                             onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
                             className="p-2 bg-primary-bg border border-border-color rounded
-                                focus:outline-none focus:border-accent-gold text-sm uppercase tracking-widest"
+                                focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm uppercase tracking-widest"
                         />
                         <select value={form.discountType}
                             onChange={e => setForm({ ...form, discountType: e.target.value })}
                             className="p-2 bg-primary-bg border border-border-color rounded
-                                focus:outline-none focus:border-accent-gold text-sm"
+                                focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         >
                             <option value="flat">Flat (₹ off)</option>
                             <option value="percent">Percent (% off)</option>
@@ -573,14 +573,14 @@ const PromoPanel = () => {
                             value={form.discountValue}
                             onChange={e => setForm({ ...form, discountValue: e.target.value })}
                             className="p-2 bg-primary-bg border border-border-color rounded
-                                focus:outline-none focus:border-accent-gold text-sm"
+                                focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         />
                         <input type="number" min="0"
                             placeholder="Min order value (₹) — optional"
                             value={form.minOrderValue}
                             onChange={e => setForm({ ...form, minOrderValue: e.target.value })}
                             className="p-2 bg-primary-bg border border-border-color rounded
-                                focus:outline-none focus:border-accent-gold text-sm"
+                                focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         />
                         {form.discountType === 'percent' && (
                             <input type="number" min="1"
@@ -588,7 +588,7 @@ const PromoPanel = () => {
                                 value={form.maxDiscountAmount}
                                 onChange={e => setForm({ ...form, maxDiscountAmount: e.target.value })}
                                 className="p-2 bg-primary-bg border border-border-color rounded
-                                    focus:outline-none focus:border-accent-gold text-sm"
+                                    focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                             />
                         )}
                         <input type="number" min="1"
@@ -596,7 +596,7 @@ const PromoPanel = () => {
                             value={form.usageLimit}
                             onChange={e => setForm({ ...form, usageLimit: e.target.value })}
                             className="p-2 bg-primary-bg border border-border-color rounded
-                                focus:outline-none focus:border-accent-gold text-sm"
+                                focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         />
                         <div>
                             <label className="block text-xs text-text-secondary mb-1">
@@ -606,7 +606,7 @@ const PromoPanel = () => {
                                 value={form.expiresAt}
                                 onChange={e => setForm({ ...form, expiresAt: e.target.value })}
                                 className="w-full p-2 bg-primary-bg border border-border-color rounded
-                                    focus:outline-none focus:border-accent-gold text-sm"
+                                    focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                             />
                         </div>
                         <div className="sm:col-span-2 flex gap-3">

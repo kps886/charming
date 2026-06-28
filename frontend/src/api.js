@@ -24,7 +24,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response && error.response.status === 401) {
+        const isLoginRequest = error.config && error.config.url && error.config.url.includes('/login');
+        if (error.response && error.response.status === 401 && !isLoginRequest) {
             console.warn("Session expired. Logging out.");
             localStorage.removeItem('charmingUser');
             window.location.href = '/login'; 

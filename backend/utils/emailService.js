@@ -22,7 +22,6 @@ export const sendEmail = async ({ to, subject, html }) => {
         });
         console.log(`Email sent → ${to} | ${subject}`);
     } catch (err) {
-        // Log but never crash the server over a failed email
         console.error('Email failed:', err.message);
     }
 };
@@ -276,7 +275,6 @@ export const sendLowStockAlert = async (product, adminEmails) => {
         </a>
     `);
 
-    // Send to all staff members
     for (const email of adminEmails) {
         await sendEmail({
             to: email,

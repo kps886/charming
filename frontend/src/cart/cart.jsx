@@ -113,7 +113,7 @@ const CartPage = () => {
                         <div className="flex flex-col sm:flex-row gap-3">
                             <button
                                 onClick={handleCheckout}
-                                className="flex-1 bg-accent-gold text-primary-bg font-bold py-3 uppercase tracking-wider hover:bg-yellow-500 transition-colors"
+                                className="flex-1 bg-accent-gold text-primary-bg font-bold py-3 uppercase tracking-wider hover:bg-yellow-500 hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all duration-300"
                             >
                                 {isLoggedIn ? 'Proceed to Checkout →' : 'Sign In to Checkout'}
                             </button>

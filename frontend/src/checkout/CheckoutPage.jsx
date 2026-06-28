@@ -46,8 +46,8 @@ const StepBar = ({ current }) => {
                     <React.Fragment key={label}>
                         <div className="flex flex-col items-center">
                             <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-colors ${done ? 'bg-accent-gold border-accent-gold text-primary-bg' :
-                                    active ? 'border-accent-gold text-accent-gold' :
-                                        'border-border-color text-text-secondary'
+                                active ? 'border-accent-gold text-accent-gold' :
+                                    'border-border-color text-text-secondary'
                                 }`}>
                                 {done ? '✓' : idx}
                             </div>
@@ -69,7 +69,7 @@ const StepBar = ({ current }) => {
 const OrderSummary = ({ cartItems, subtotal, deliveryFee, discount, total, promoCode }) => (
     <div className="bg-secondary-bg border border-border-color p-5 sticky top-24">
         <h3 className="font-serif text-lg mb-4 pb-3 border-b border-border-color"
-            >
+        >
             Order Summary
         </h3>
 
@@ -134,7 +134,7 @@ const Field = ({ label, name, type = 'text', required, half, children, value, on
                 type={type}
                 value={value}
                 onChange={onChange}
-                className={`w-full p-3 bg-primary-bg border rounded focus:outline-none focus:border-accent-gold transition-colors ${error ? 'border-red-500' : 'border-border-color'
+                className={`w-full p-3 bg-primary-bg border rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors ${error ? 'border-red-500' : 'border-border-color'
                     }`}
             />
         )}
@@ -340,7 +340,7 @@ const CheckoutPage = () => {
     return (
         <div className="container mx-auto py-8 px-4 max-w-6xl">
             <h1 className="text-3xl font-serif text-center mb-8"
-                >
+            >
                 Checkout
             </h1>
 
@@ -354,7 +354,7 @@ const CheckoutPage = () => {
                     {step === 1 && (
                         <div className="bg-secondary-bg border border-border-color p-6">
                             <h2 className="text-xl font-serif mb-5"
-                                >
+                            >
                                 Shipping Address
                             </h2>
 
@@ -364,8 +364,8 @@ const CheckoutPage = () => {
                                     {savedAddresses.map((a, i) => (
                                         <label key={i}
                                             className={`flex items-start gap-3 p-3 border rounded cursor-pointer transition-colors ${!useNewAddress && address === a
-                                                    ? 'border-accent-gold bg-accent-gold/5'
-                                                    : 'border-border-color hover:border-text-secondary'
+                                                ? 'border-accent-gold bg-accent-gold/5'
+                                                : 'border-border-color hover:border-text-secondary'
                                                 }`}>
                                             <input
                                                 type="radio"
@@ -385,8 +385,8 @@ const CheckoutPage = () => {
                                     <button
                                         onClick={() => { setAddress(emptyAddress); setUseNewAddress(true); }}
                                         className={`w-full p-3 border rounded text-sm font-semibold transition-colors text-left ${useNewAddress
-                                                ? 'border-accent-gold text-accent-gold'
-                                                : 'border-border-color text-text-secondary hover:border-text-secondary'
+                                            ? 'border-accent-gold text-accent-gold'
+                                            : 'border-border-color text-text-secondary hover:border-text-secondary'
                                             }`}>
                                         + Use a new address
                                     </button>
@@ -435,7 +435,7 @@ const CheckoutPage = () => {
                                         <select
                                             value={address.state}
                                             onChange={e => setAddress({ ...address, state: e.target.value })}
-                                            className="w-full p-3 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold"
+                                            className="w-full p-3 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                         >
                                             {INDIAN_STATES.map(s => (
                                                 <option key={s} value={s}>{s}</option>
@@ -468,7 +468,7 @@ const CheckoutPage = () => {
                             <div className="bg-secondary-bg border border-border-color p-5">
                                 <div className="flex justify-between items-start">
                                     <h2 className="font-serif text-lg mb-3"
-                                        >
+                                    >
                                         Delivering To
                                     </h2>
                                     <button
@@ -487,7 +487,7 @@ const CheckoutPage = () => {
                             {/* Promo code */}
                             <div className="bg-secondary-bg border border-border-color p-5">
                                 <h2 className="font-serif text-lg mb-4"
-                                    >
+                                >
                                     Promo Code
                                 </h2>
 
@@ -512,7 +512,7 @@ const CheckoutPage = () => {
                                             onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromoError(''); }}
                                             onKeyDown={e => e.key === 'Enter' && handleApplyPromo()}
                                             placeholder="Enter promo code"
-                                            className="flex-grow p-3 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold uppercase tracking-widest text-sm"
+                                            className="flex-grow p-3 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 uppercase tracking-widest text-sm"
                                         />
                                         <button
                                             onClick={handleApplyPromo}
@@ -531,7 +531,7 @@ const CheckoutPage = () => {
                             {/* Price breakdown */}
                             <div className="bg-secondary-bg border border-border-color p-5">
                                 <h2 className="font-serif text-lg mb-4"
-                                    >
+                                >
                                     Price Details
                                 </h2>
                                 <div className="space-y-2 text-sm">
@@ -569,7 +569,7 @@ const CheckoutPage = () => {
                     {step === 3 && (
                         <div className="bg-secondary-bg border border-border-color p-6">
                             <h2 className="text-xl font-serif mb-2"
-                                >
+                            >
                                 Payment
                             </h2>
                             <p className="text-text-secondary text-sm mb-6">
@@ -609,7 +609,7 @@ const CheckoutPage = () => {
                             <button
                                 onClick={handlePayment}
                                 disabled={placing}
-                                className="w-full bg-accent-gold text-primary-bg font-bold py-4 uppercase tracking-wider hover:bg-yellow-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-base"
+                                className="w-full bg-accent-gold text-primary-bg font-bold py-4 uppercase tracking-wider hover:bg-yellow-500 hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed text-base"
                             >
                                 {placing ? 'Opening Payment...' : `Pay ₹${total.toLocaleString('en-IN')}`}
                             </button>

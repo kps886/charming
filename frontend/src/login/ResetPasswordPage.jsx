@@ -64,7 +64,7 @@ const ResetPasswordPage = () => {
                             <input
                                 type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
                                 placeholder="New Password (Min 6)" minLength="6"
-                                className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
+                                className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors"
                             />
                         </div>
                         
@@ -76,7 +76,7 @@ const ResetPasswordPage = () => {
                             <input
                                 type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                                 placeholder="Confirm New Password" minLength="6"
-                                className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold transition-colors"
+                                className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors"
                             />
                         </div>
 
