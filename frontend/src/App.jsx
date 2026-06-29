@@ -69,18 +69,12 @@ const MenuIcon = () => (
 // ── Drawer overlay ────────────────────────────────────────────
 const Drawer = ({ open, onClose, children }) => (
     <>
-        {/* Dark backdrop */}
         <div
             onClick={onClose}
-            className={`fixed inset-0 bg-black/60 z-40 transition-opacity duration-300 ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                }`}
+            className={`fixed inset-0 bg-black/20 z-[90] transition-opacity duration-300 ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         />
-        {/* Sliding panel */}
         <div
-            className={`fixed top-0 left-0 h-full w-72 max-w-[85vw] z-50 flex flex-col
-                transition-transform duration-300 ease-in-out
-                ${open ? 'translate-x-0' : '-translate-x-full'}`}
-            style={{ backgroundColor: 'var(--secondary-bg)', borderRight: '1px solid var(--border-color)' }}
+            className={`fixed top-0 left-0 h-full w-72 max-w-[85vw] z-[100] flex flex-col transition-transform duration-300 ease-in-out bg-glass-secondary backdrop-blur-xl border-r border-border-color ${open ? 'translate-x-0' : '-translate-x-full'}`}
         >
             {children}
         </div>
@@ -137,7 +131,7 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
 
     return (
         <>
-            <header className="sticky top-0 z-30 bg-secondary-bg/80 backdrop-blur-md border-b border-border-color transition-colors duration-300">
+            <header className="sticky top-0 z-30 bg-glass-secondary backdrop-blur-md border-b border-border-color transition-colors duration-300">
                 <div className="px-4 h-16 sm:h-20 flex items-center justify-between relative">
 
                     {/* ─── MOBILE/TABLET: Left (Hamburger) ─── */}
@@ -153,14 +147,14 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
 
                     {/* ─── MOBILE/TABLET: Center (Logo) ─── */}
                     <div className="lg:hidden flex justify-center tab-logo items-center">
-                        <Link to="/">
+                        <Link to="/" className="flex justify-center items-center font-serif font-bold text-accent-gold tracking-wider">
                             Charming
                         </Link>
                     </div>
 
                     {/* ─── DESKTOP: Left (Logo) ─── */}
                     <div className="hidden lg:flex flex-1 justify-start items-center pc-logo">
-                        <Link to="/" className="flex-shrink-0">
+                        <Link to="/" className="flex justify-center items-center font-serif font-bold text-accent-gold tracking-wider flex-shrink-0">
                             Charming
                         </Link>
                     </div>
@@ -279,16 +273,16 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
             {/* Mobile sliding drawer */}
             <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
                 {/* Drawer header */}
-                <div className={`fixed top-0 left-0 h-full w-72 max-w-[85vw] z-50 flex flex-col transition-transform duration-300 ease-in-out bg-secondary-bg/90 backdrop-blur-xl border-r border-border-color ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <Link to="/" onClick={() => setDrawerOpen(false)}>
+                <div className="flex items-center justify-between px-5 h-16 sm:h-20 flex-shrink-0 border-b border-border-color bg-transparent">
+                    <Link to="/" onClick={() => setDrawerOpen(false)} className="text-2xl font-serif font-bold text-accent-gold tracking-wider">
                         Charming
                     </Link>
                     <button onClick={() => setDrawerOpen(false)} className="p-2 hover:text-accent-gold transition-colors text-xl leading-none">✕</button>
                 </div>
 
                 {isLoggedIn && (
-                    <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--primary-bg)' }}>
-                        <p className="font-semibold text-sm truncate">{user.name}</p>
+                    <div className="px-5 py-4 flex-shrink-0 border-b border-border-color bg-transparent">
+                        <p className="font-semibold text-sm truncate text-text-primary">{user.name}</p>
                         <p className="text-xs text-text-secondary truncate">{user.email}</p>
                         <span className="inline-block mt-2 px-2 py-0.5 text-[10px] font-bold border rounded uppercase bg-accent-gold/10 text-accent-gold border-accent-gold/40">
                             {user.role}
@@ -296,7 +290,7 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                     </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto bg-transparent">
                     <div className="px-5 py-6">
                         <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-4">Shop Categories</p>
                         <div className="space-y-1">
@@ -304,7 +298,7 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                                 <button
                                     key={cat || 'all'}
                                     onClick={() => handleCategoryClick(cat)}
-                                    className={`w-full text-left px-4 py-3 rounded text-sm font-semibold uppercase tracking-wider transition-colors ${category === cat ? 'bg-accent-gold text-primary-bg' : 'hover:bg-primary-bg text-text-primary'}`}
+                                    className={`w-full text-left px-4 py-3 rounded text-sm font-semibold uppercase tracking-wider transition-colors ${category === cat ? 'bg-accent-gold text-primary-bg' : 'hover:bg-hover-overlay text-text-primary'}`}
                                 >
                                     {cat || 'All Products'}
                                 </button>
@@ -312,30 +306,30 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                         </div>
                     </div>
 
-                    <div className="px-5 py-4" style={{ borderTop: '1px solid var(--border-color)' }}>
+                    <div className="px-5 py-4 border-t border-border-color bg-transparent">
                         <p className="text-xs font-bold uppercase tracking-widest text-text-secondary mb-3">Account & Settings</p>
                         <div className="space-y-1">
                             {isLoggedIn && (
                                 <>
                                     {(isAdmin || isShopkeeper || isEmployee) && (
-                                        <Link to={getDashboardPath()} onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
+                                        <Link to={getDashboardPath()} onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-hover-overlay text-text-primary transition-colors">
                                             Dashboard
                                         </Link>
                                     )}
                                     {user?.role === 'user' && (
                                         <>
-                                            <Link to="/cart" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
+                                            <Link to="/cart" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-hover-overlay text-text-primary transition-colors">
                                                 <span>My Bag</span>
                                                 {totalItems > 0 && <span className="bg-accent-gold text-primary-bg text-xs font-bold rounded-full px-2 py-0.5">{totalItems}</span>}
                                             </Link>
-                                            <Link to="/my-orders" onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
+                                            <Link to="/my-orders" onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-hover-overlay text-text-primary transition-colors">
                                                 My Orders
                                             </Link>
-                                            <Link to="/wishlist" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
+                                            <Link to="/wishlist" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-hover-overlay text-text-primary transition-colors">
                                                 <span>Wishlist</span>
                                                 {wishlist.length > 0 && <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{wishlist.length}</span>}
                                             </Link>
-                                            <Link to="/profile" onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
+                                            <Link to="/profile" onClick={() => setDrawerOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded text-sm font-semibold hover:bg-hover-overlay text-text-primary transition-colors">
                                                 My Profile
                                             </Link>
                                         </>
@@ -343,16 +337,15 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                                 </>
                             )}
 
-                            {/* Wishlist Link for logged-out users, so they don't lose access when it's hidden from mobile top nav */}
                             {!isLoggedIn && (
-                                <Link to="/wishlist" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors">
+                                <Link to="/wishlist" onClick={() => setDrawerOpen(false)} className="flex items-center justify-between px-3 py-2.5 rounded text-sm font-semibold hover:bg-hover-overlay text-text-primary transition-colors">
                                     <span>Wishlist</span>
                                     {wishlist.length > 0 && <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{wishlist.length}</span>}
                                 </Link>
                             )}
 
                             {/* Theme Toggle */}
-                            <button onClick={() => { toggleTheme(); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded text-sm font-semibold hover:bg-primary-bg transition-colors text-text-primary mt-2">
+                            <button onClick={() => { toggleTheme(); }} className="flex items-center gap-3 w-full px-3 py-2.5 rounded text-sm font-semibold hover:bg-hover-overlay transition-colors text-text-primary mt-2">
                                 {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
                                 {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                             </button>
@@ -360,8 +353,7 @@ const Header = ({ theme, toggleTheme, category, setCategory }) => {
                     </div>
                 </div>
 
-                {/* Sticky Footer exclusively holding the Authentication action */}
-                <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid var(--border-color)', backgroundColor: 'var(--secondary-bg)' }}>
+                <div className="px-5 py-4 flex-shrink-0 border-t border-border-color bg-transparent">
                     {isLoggedIn ? (
                         <button onClick={handleLogout} className="flex items-center justify-center gap-3 w-full px-4 py-3 rounded text-sm font-bold bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors border border-red-500/20">
                             Sign Out
@@ -403,7 +395,7 @@ const ProductCard = ({ product }) => {
     const avgRating = product.avgRating || 0;
 
     return (
-        <div className="bg-secondary-bg/80 backdrop-blur-md border border-border-color rounded-2xl group relative
+        <div className="bg-glass-secondary backdrop-blur-md border border-border-color rounded-2xl group relative
             overflow-hidden text-center transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
 
             {/* Premium Top Glow */}
@@ -418,7 +410,7 @@ const ProductCard = ({ product }) => {
             {product.stock === 0 && (
                 <div className="absolute top-4 right-12 bg-red-500 text-white
                     px-2 py-0.5 text-xs font-bold z-10 uppercase rounded shadow-sm">
-                    Out
+                    Out Of Stock
                 </div>
             )}
 
@@ -625,17 +617,17 @@ const HomePage = ({ products, loading, error, category, setCategory, search, set
                     {/* ─── MOBILE FILTER BACKDROP ─── */}
                     {isMobileFilterOpen && (
                         <div
-                            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+                            className="fixed inset-0 bg-black/20 z-40 lg:hidden"
                             onClick={() => setIsMobileFilterOpen(false)}
                         />
                     )}
 
                     {/* ─── SIDEBAR FILTERS (Drawer on Mobile, Static on Desktop) ─── */}
                     <aside className={`
-                        fixed inset-y-0 left-0 z-50 w-[85vw] sm:w-80 bg-primary-bg p-6 overflow-y-auto
+                        fixed inset-y-0 left-0 z-[100] w-[85vw] sm:w-80 bg-glass-primary backdrop-blur-xl p-6 overflow-y-auto
                         transition-transform duration-300 ease-in-out transform
                         ${isMobileFilterOpen ? 'translate-x-0' : '-translate-x-full'}
-                        lg:static lg:z-auto lg:w-64 lg:p-0 lg:bg-transparent lg:translate-x-0 lg:flex-shrink-0 lg:space-y-8
+                        lg:static lg:z-auto lg:w-64 lg:p-0 lg:bg-transparent lg:backdrop-blur-none lg:translate-x-0 lg:flex-shrink-0 lg:space-y-8
                     `}>
 
                         {/* Mobile Drawer Header */}
@@ -823,6 +815,10 @@ export default function App() {
             --text-secondary: #999999;
             --accent-gold: #D4AF37;
             --border-color: #3a3a3a;
+            /* LOWERED TO 0.65 FOR FROSTED GLASS */
+            --glass-secondary: rgba(42, 42, 42, 0.65);
+            --glass-primary: rgba(26, 26, 26, 0.65);
+            --hover-overlay: rgba(255, 255, 255, 0.05);
         }
         :root[data-theme='light'] {
             --primary-bg: #F5F5F5;
@@ -831,6 +827,10 @@ export default function App() {
             --text-secondary: #666666;
             --accent-gold: #B8960C;
             --border-color: #e0e0e0;
+            /* LOWERED TO 0.65 FOR FROSTED GLASS */
+            --glass-secondary: rgba(255, 255, 255, 0.65);
+            --glass-primary: rgba(245, 245, 245, 0.65);
+            --hover-overlay: rgba(0, 0, 0, 0.05);
         }
         * { box-sizing: border-box; }
         body {
@@ -842,6 +842,8 @@ export default function App() {
         }
         .bg-primary-bg { background-color: var(--primary-bg); }
         .bg-secondary-bg { background-color: var(--secondary-bg); }
+        .bg-glass-primary { background-color: var(--glass-primary); }
+        .bg-glass-secondary { background-color: var(--glass-secondary); }
         .text-text-primary { color: var(--text-primary); }
         .text-text-secondary { color: var(--text-secondary); }
         .text-accent-gold { color: var(--accent-gold); }
@@ -850,6 +852,7 @@ export default function App() {
         .border-accent-gold { border-color: var(--accent-gold); }
         .hover\\:text-accent-gold:hover { color: var(--accent-gold); }
         .hover\\:bg-primary-bg:hover { background-color: var(--primary-bg); }
+        .hover\\:bg-hover-overlay:hover { background-color: var(--hover-overlay); }
         .focus\\:border-accent-gold:focus { border-color: var(--accent-gold); }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         @keyframes spin { to { transform: rotate(360deg); } }

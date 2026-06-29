@@ -5,12 +5,12 @@ import toast from 'react-hot-toast';
 
 const OTPVerificationPage = () => {
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
-    
+
     // Timer and Resend State
-    const [timeLeft, setTimeLeft] = useState(60); 
+    const [timeLeft, setTimeLeft] = useState(60);
     const [isResending, setIsResending] = useState(false);
     const [attemptsLeft, setAttemptsLeft] = useState(3);
-    
+
     const inputRefs = useRef([]);
     const location = useLocation();
     const navigate = useNavigate();
@@ -53,7 +53,7 @@ const OTPVerificationPage = () => {
     const handlePaste = (e) => {
         e.preventDefault();
         const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-        
+
         if (pastedData) {
             const newOtp = [...otp];
             for (let i = 0; i < pastedData.length; i++) {
@@ -68,7 +68,7 @@ const OTPVerificationPage = () => {
     // ── Submission ──
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         const otpString = otp.join('');
         if (otpString.length !== 6) return toast.error("Please enter a valid 6-digit code");
 
@@ -90,7 +90,7 @@ const OTPVerificationPage = () => {
     // ── Resend Action ──
     const handleResend = async () => {
         if (timeLeft > 0 || attemptsLeft <= 0) return;
-        
+
         setIsResending(true);
         const result = await resendOtp(email);
         setIsResending(false);
@@ -99,7 +99,7 @@ const OTPVerificationPage = () => {
             toast.success('A new verification code has been sent!');
             setTimeLeft(60); // Reset timer back to 60 seconds
             setAttemptsLeft(result.attemptsLeft);
-            
+
             // Clear inputs so they can type the new code
             setOtp(['', '', '', '', '', '']);
             if (inputRefs.current[0]) inputRefs.current[0].focus();
@@ -116,7 +116,12 @@ const OTPVerificationPage = () => {
 
             <div className="w-full max-w-md relative z-10">
                 <div className="text-center mb-8">
-                    <h1 className="text-5xl font-serif text-accent-gold" >Charming</h1>
+                    <h1 className="text-5xl font-serif font-bold text-accent-gold tracking-wider">
+                        Charming
+                    </h1>
+                    <p className="text-text-secondary mt-2 tracking-wider text-sm uppercase font-semibold">
+                        Curated collections of luxury and style
+                    </p>
                 </div>
 
                 <div className="bg-secondary-bg border border-border-color p-8 rounded-2xl shadow-2xl relative overflow-hidden">
@@ -153,13 +158,13 @@ const OTPVerificationPage = () => {
                     {/* Resend Section */}
                     <div className="mt-8 text-center text-sm text-text-secondary">
                         <p className="mb-2">Didn't receive the code?</p>
-                        
+
                         {attemptsLeft <= 0 ? (
                             <span className="text-red-400 font-bold">Too many attempts. Please try again later.</span>
                         ) : timeLeft > 0 ? (
                             <span>Resend available in <span className="text-accent-gold font-bold">{timeLeft}s</span></span>
                         ) : (
-                            <button 
+                            <button
                                 type="button"
                                 onClick={handleResend}
                                 disabled={isResending}
@@ -168,7 +173,7 @@ const OTPVerificationPage = () => {
                                 {isResending ? 'Sending...' : 'Resend Code'}
                             </button>
                         )}
-                        
+
                         {attemptsLeft > 0 && attemptsLeft < 3 && timeLeft > 0 && (
                             <p className="text-xs mt-2 opacity-70">({attemptsLeft} attempts remaining)</p>
                         )}

@@ -29,9 +29,12 @@ const ForgotPasswordPage = () => {
 
             <div className="w-full max-w-md relative z-10">
                 <div className="text-center mb-8">
-                    <h1 className="text-5xl font-serif text-accent-gold" >
+                    <h1 className="text-5xl font-serif font-bold text-accent-gold tracking-wider">
                         Charming
                     </h1>
+                    <p className="text-text-secondary mt-2 tracking-wider text-sm uppercase font-semibold">
+                        Curated collections of luxury and style
+                    </p>
                 </div>
 
                 <div className="bg-secondary-bg border border-border-color p-8 rounded-2xl shadow-2xl relative overflow-hidden">

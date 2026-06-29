@@ -90,9 +90,8 @@ const LoginPage = () => {
         <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden bg-primary-bg">
 
             <div className="w-full max-w-md relative z-10">
-                {/* Logo Area */}
                 <div className="text-center mb-8">
-                    <h1 className="text-5xl font-serif text-accent-gold" >
+                    <h1 className="text-5xl font-serif font-bold text-accent-gold tracking-wider">
                         Charming
                     </h1>
                     <p className="text-text-secondary mt-2 tracking-wider text-sm uppercase font-semibold">

@@ -5,7 +5,7 @@ import api from '../api';
 const ResetPasswordPage = () => {
     const { token } = useParams();
     const navigate = useNavigate();
-    
+
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [message, setMessage] = useState('');
@@ -26,7 +26,7 @@ const ResetPasswordPage = () => {
         try {
             const { data } = await api.put(`/api/users/resetpassword/${token}`, { password });
             setMessage(data.message || 'Password reset successful!');
-            
+
             setTimeout(() => {
                 navigate('/login');
             }, 3000);
@@ -41,9 +41,12 @@ const ResetPasswordPage = () => {
 
             <div className="w-full max-w-md relative z-10">
                 <div className="text-center mb-8">
-                    <h1 className="text-5xl font-serif text-accent-gold" >
+                    <h1 className="text-5xl font-serif font-bold text-accent-gold tracking-wider">
                         Charming
                     </h1>
+                    <p className="text-text-secondary mt-2 tracking-wider text-sm uppercase font-semibold">
+                        Curated collections of luxury and style
+                    </p>
                 </div>
 
                 <div className="bg-secondary-bg border border-border-color p-8 rounded-2xl shadow-2xl relative overflow-hidden">
@@ -67,7 +70,7 @@ const ResetPasswordPage = () => {
                                 className="w-full pl-12 pr-4 py-3 bg-primary-bg border border-border-color rounded-xl text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 transition-colors"
                             />
                         </div>
-                        
+
                         <div className="relative">
                             {/* Lock Icon */}
                             <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
