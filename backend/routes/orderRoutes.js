@@ -6,8 +6,7 @@ import Product from '../models/Product.js';
 import PromoCode from '../models/PromoCode.js';
 import { protect, employeeAndAbove, shopkeeperAndAbove } from '../middleware/authMiddleware.js';
 import User from '../models/User.js';
-import { sendOrderConfirmation, sendStatusUpdate } from '../utils/emailService.js';
-
+import { sendOrderConfirmation, sendStatusUpdate, sendLowStockAlert } from '../utils/emailService.js';
 const router = express.Router();
 
 const razorpay = new Razorpay({
@@ -326,10 +325,13 @@ router.post('/webhook', async (req, res) => {
 
     // 1. Verify the signature to ensure the request is actually from Razorpay
     const shasum = crypto.createHmac('sha256', secret);
-    shasum.update(JSON.stringify(req.body));
+    shasum.update(req.rawBody);
     const digest = shasum.digest('hex');
+    const signature = req.headers['x-razorpay-signature'] || '';
+    const expectedBuffer = Buffer.from(digest);
+    const signatureBuffer = Buffer.from(signature);
 
-    if (digest === req.headers['x-razorpay-signature']) {
+    if (expectedBuffer.length === signatureBuffer.length && crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
         const event = req.body.event;
 
         // 2. We only care if the payment was successfully captured
@@ -339,36 +341,52 @@ router.post('/webhook', async (req, res) => {
             const razorpayPaymentId = paymentEntity.id;
 
             try {
-                const order = await Order.findOne({ razorpayOrderId });
-                
-                // 3. IDEMPOTENCY CHECK: If the frontend already verified this order, do nothing!
-                if (order && order.paymentStatus === 'pending') {
-                    
-                    order.paymentStatus = 'paid';
-                    order.orderStatus = 'processing';
-                    order.razorpayPaymentId = razorpayPaymentId;
-                    order.paidAt = new Date();
-                    await order.save();
+                const order = await Order.findOneAndUpdate(
+                    { razorpayOrderId, paymentStatus: 'pending' },
+                    { $set: { paymentStatus: 'paid', razorpayPaymentId, paidAt: new Date() } },
+                    { new: true }
+                );
 
-                    // Send email
-                    const buyer = await User.findById(order.user).select('name email');
-                    if (buyer) {
-                        await sendOrderConfirmation(order, buyer.email, buyer.name);
-                    }
+                if (order) {
+                    if (order.orderStatus === 'cancelled') {
+                        // Do not fulfill or revive. Money was taken on a cancelled order; admin must refund.
+                        console.warn(`Payment captured for cancelled order ${order._id}`);
+                    } else {
+                        order.orderStatus = 'processing';
+                        await order.save();
 
-                    // Deduct stock
-                    for (const item of order.items) {
-                        await Product.findByIdAndUpdate(item.product, {
-                            $inc: { stock: -item.quantity },
-                        });
-                    }
+                        // Send email
+                        const buyer = await User.findById(order.user).select('name email');
+                        if (buyer) {
+                            await sendOrderConfirmation(order, buyer.email, buyer.name);
+                        }
 
-                    // Increment promo usage
-                    if (order.promoCode) {
-                        await PromoCode.findOneAndUpdate(
-                            { code: order.promoCode },
-                            { $inc: { usedCount: 1 } }
-                        );
+                        // Deduct stock
+                        for (const item of order.items) {
+                            const updatedProduct = await Product.findByIdAndUpdate(item.product, {
+                                $inc: { stock: -item.quantity },
+                            }, { new: true });
+
+                            if (updatedProduct && updatedProduct.stock <= 0) {
+                                const staffMembers = await User.find({ 
+                                    role: { $in: ['admin', 'shopkeeper'] } 
+                                }).select('email');
+                                
+                                const staffEmails = staffMembers.map(u => u.email);
+                                
+                                if (staffEmails.length > 0) {
+                                    await sendLowStockAlert(updatedProduct, staffEmails);
+                                }
+                            }
+                        }
+
+                        // Increment promo usage
+                        if (order.promoCode) {
+                            await PromoCode.findOneAndUpdate(
+                                { code: order.promoCode },
+                                { $inc: { usedCount: 1 } }
+                            );
+                        }
                     }
                 }
             } catch (err) {
