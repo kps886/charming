@@ -1,7 +1,16 @@
 export const optimizeImage = (url) => {
     if (!url) return '';
-    // If it's a placeholder or external image, just return it
-    if (!url.includes('cloudinary.com')) return url; 
+    
+    try {
+        const hostname = new URL(url).hostname;
+        // If it's a placeholder or external image, just return it
+        if (hostname !== 'cloudinary.com' && !hostname.endsWith('.cloudinary.com')) {
+            return url;
+        }
+    } catch (e) {
+        // If it throws (e.g., a relative path like '/images/logo.png'), it's not a Cloudinary URL
+        return url;
+    }
 
     // Cloudinary URLs structure: .../image/upload/v1234567890/...
     // We want to inject the parameters right after /upload/
