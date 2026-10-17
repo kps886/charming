@@ -51,7 +51,11 @@ const authLimiter = rateLimit({
     max: 10,
     message: { message: 'Too many login attempts. Please try again later.' }
 });
-app.use(express.json());
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf;
+    }
+}));
 
 // Connect to MongoDB
 const connectDB = async () => {

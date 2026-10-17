@@ -6,8 +6,7 @@ import Product from '../models/Product.js';
 import PromoCode from '../models/PromoCode.js';
 import { protect, employeeAndAbove, shopkeeperAndAbove } from '../middleware/authMiddleware.js';
 import User from '../models/User.js';
-import { sendOrderConfirmation, sendStatusUpdate } from '../utils/emailService.js';
-
+import { sendOrderConfirmation, sendStatusUpdate, sendLowStockAlert } from '../utils/emailService.js';
 const router = express.Router();
 
 const razorpay = new Razorpay({
@@ -314,6 +313,89 @@ router.put('/:id/cancel', protect, async (req, res) => {
         res.json({ message: 'Order cancelled successfully', order });
     } catch (error) {
         res.status(500).json({ message: 'Server error cancelling order' });
+    }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/orders/webhook  →  Razorpay Server-to-Server Fallback
+// ─────────────────────────────────────────────
+router.post('/webhook', async (req, res) => {
+    // Razorpay webhook secret (Set this in your .env / Render config)
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    // 1. Verify the signature to ensure the request is actually from Razorpay
+    const shasum = crypto.createHmac('sha256', secret);
+    shasum.update(req.rawBody);
+    const digest = shasum.digest('hex');
+    const signature = req.headers['x-razorpay-signature'] || '';
+    const expectedBuffer = Buffer.from(digest);
+    const signatureBuffer = Buffer.from(signature);
+
+    if (expectedBuffer.length === signatureBuffer.length && crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
+        const event = req.body.event;
+
+        // 2. We only care if the payment was successfully captured
+        if (event === 'payment.captured' || event === 'order.paid') {
+            const paymentEntity = req.body.payload.payment.entity;
+            const razorpayOrderId = paymentEntity.order_id;
+            const razorpayPaymentId = paymentEntity.id;
+
+            try {
+                const order = await Order.findOneAndUpdate(
+                    { razorpayOrderId, paymentStatus: 'pending' },
+                    { $set: { paymentStatus: 'paid', razorpayPaymentId, paidAt: new Date() } },
+                    { new: true }
+                );
+
+                if (order) {
+                    if (order.orderStatus === 'cancelled') {
+                        // Do not fulfill or revive. Money was taken on a cancelled order; admin must refund.
+                        console.warn(`Payment captured for cancelled order ${order._id}`);
+                    } else {
+                        order.orderStatus = 'processing';
+                        await order.save();
+
+                        // Send email
+                        const buyer = await User.findById(order.user).select('name email');
+                        if (buyer) {
+                            await sendOrderConfirmation(order, buyer.email, buyer.name);
+                        }
+
+                        // Deduct stock
+                        for (const item of order.items) {
+                            const updatedProduct = await Product.findByIdAndUpdate(item.product, {
+                                $inc: { stock: -item.quantity },
+                            }, { new: true });
+
+                            if (updatedProduct && updatedProduct.stock <= 0) {
+                                const staffMembers = await User.find({ 
+                                    role: { $in: ['admin', 'shopkeeper'] } 
+                                }).select('email');
+                                
+                                const staffEmails = staffMembers.map(u => u.email);
+                                
+                                if (staffEmails.length > 0) {
+                                    await sendLowStockAlert(updatedProduct, staffEmails);
+                                }
+                            }
+                        }
+
+                        // Increment promo usage
+                        if (order.promoCode) {
+                            await PromoCode.findOneAndUpdate(
+                                { code: order.promoCode },
+                                { $inc: { usedCount: 1 } }
+                            );
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Webhook processing error:", err);
+            }
+        }
+        return res.status(200).json({ status: 'ok' });
+    } else {
+        return res.status(400).json({ message: 'Invalid signature' });
     }
 });
 
