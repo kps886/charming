@@ -790,6 +790,8 @@ export default function App() {
     }, [search]);
 
     useEffect(() => {
+        let ignore = false; // NEW: Track if this request is stale
+
         const fetchProducts = async () => {
             setLoading(true);
             try {
@@ -803,14 +805,23 @@ export default function App() {
                     ...(maxPrice && { maxPrice }),
                 });
                 const { data } = await api.get(`/api/products?${params}`);
-                setProducts(data.products);
-                setPagination({ pages: data.pages, total: data.total });
+                
+                // NEW: Only update React state if this request hasn't been superseded
+                if (!ignore) {
+                    setProducts(data.products);
+                    setPagination({ pages: data.pages, total: data.total });
+                }
             } catch {
-                setError('Failed to connect to backend.');
+                if (!ignore) setError('Failed to connect to backend.');
             }
-            setLoading(false);
+            if (!ignore) setLoading(false);
         };
         fetchProducts();
+
+        // NEW: Cleanup function runs when dependencies change before the fetch completes
+        return () => {
+            ignore = true; 
+        };
     }, [page, sort, category, debouncedSearch, minPrice, maxPrice, refreshTrigger]);
     useEffect(() => { setPage(1); }, [category, debouncedSearch, sort, minPrice, maxPrice]);
 
