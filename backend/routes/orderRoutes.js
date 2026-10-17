@@ -317,4 +317,68 @@ router.put('/:id/cancel', protect, async (req, res) => {
     }
 });
 
+// ─────────────────────────────────────────────
+// POST /api/orders/webhook  →  Razorpay Server-to-Server Fallback
+// ─────────────────────────────────────────────
+router.post('/webhook', async (req, res) => {
+    // Razorpay webhook secret (Set this in your .env / Render config)
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    // 1. Verify the signature to ensure the request is actually from Razorpay
+    const shasum = crypto.createHmac('sha256', secret);
+    shasum.update(JSON.stringify(req.body));
+    const digest = shasum.digest('hex');
+
+    if (digest === req.headers['x-razorpay-signature']) {
+        const event = req.body.event;
+
+        // 2. We only care if the payment was successfully captured
+        if (event === 'payment.captured' || event === 'order.paid') {
+            const paymentEntity = req.body.payload.payment.entity;
+            const razorpayOrderId = paymentEntity.order_id;
+            const razorpayPaymentId = paymentEntity.id;
+
+            try {
+                const order = await Order.findOne({ razorpayOrderId });
+                
+                // 3. IDEMPOTENCY CHECK: If the frontend already verified this order, do nothing!
+                if (order && order.paymentStatus === 'pending') {
+                    
+                    order.paymentStatus = 'paid';
+                    order.orderStatus = 'processing';
+                    order.razorpayPaymentId = razorpayPaymentId;
+                    order.paidAt = new Date();
+                    await order.save();
+
+                    // Send email
+                    const buyer = await User.findById(order.user).select('name email');
+                    if (buyer) {
+                        await sendOrderConfirmation(order, buyer.email, buyer.name);
+                    }
+
+                    // Deduct stock
+                    for (const item of order.items) {
+                        await Product.findByIdAndUpdate(item.product, {
+                            $inc: { stock: -item.quantity },
+                        });
+                    }
+
+                    // Increment promo usage
+                    if (order.promoCode) {
+                        await PromoCode.findOneAndUpdate(
+                            { code: order.promoCode },
+                            { $inc: { usedCount: 1 } }
+                        );
+                    }
+                }
+            } catch (err) {
+                console.error("Webhook processing error:", err);
+            }
+        }
+        return res.status(200).json({ status: 'ok' });
+    } else {
+        return res.status(400).json({ message: 'Invalid signature' });
+    }
+});
+
 export default router;
