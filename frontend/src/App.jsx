@@ -761,6 +761,7 @@ export default function App() {
     const [error, setError] = useState(null);
     const [category, setCategory] = useState('');
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [sort, setSort] = useState('newest');
     const [page, setPage] = useState(1);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -782,6 +783,13 @@ export default function App() {
     };
 
     useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    useEffect(() => {
         const fetchProducts = async () => {
             setLoading(true);
             try {
@@ -790,7 +798,7 @@ export default function App() {
                     limit: 12,
                     sort,
                     ...(category && { category }),
-                    ...(search && { search }),
+                    ...(debouncedSearch && { search: debouncedSearch }),
                     ...(minPrice && { minPrice }),
                     ...(maxPrice && { maxPrice }),
                 });
@@ -803,9 +811,8 @@ export default function App() {
             setLoading(false);
         };
         fetchProducts();
-    }, [page, sort, category, search, minPrice, maxPrice, refreshTrigger]);
-
-    useEffect(() => { setPage(1); }, [category, search, sort, minPrice, maxPrice]);
+    }, [page, sort, category, debouncedSearch, minPrice, maxPrice, refreshTrigger]);
+    useEffect(() => { setPage(1); }, [category, debouncedSearch, sort, minPrice, maxPrice]);
 
     const themeStyles = useMemo(() => `
         :root[data-theme='dark'] {
