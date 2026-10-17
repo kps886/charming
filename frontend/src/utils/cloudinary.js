@@ -2,8 +2,7 @@ export const optimizeImage = (url) => {
     if (!url) return '';
     
     try {
-        const hostname = new URL(url).hostname;
-        // If it's a placeholder or external image, just return it
+        const hostname = new URL(url, 'http://dummy.local').hostname;
         if (hostname !== 'cloudinary.com' && !hostname.endsWith('.cloudinary.com')) {
             return url;
         }
