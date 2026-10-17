@@ -4,6 +4,7 @@ import api from './../api'
 import { CartContext } from '../cart/cartProvider';
 import { useAuth } from '../auth/AuthContext';
 import { DELIVERY_THRESHOLD, DELIVERY_FEE } from '../config/constants';
+import { optimizeImage } from '../utils/cloudinary';
 
 // ── Razorpay script loader ────────────────────────────────────
 const loadRazorpay = () =>
@@ -77,7 +78,7 @@ const OrderSummary = ({ cartItems, subtotal, deliveryFee, discount, total, promo
             {cartItems.map(item => (
                 <div key={item._id} className="flex items-center gap-3">
                     <img
-                        src={item.images?.[0] || 'https://placehold.co/48x48/222/D4AF37?text=C'}
+                        src={optimizeImage(item.images?.[0]) || 'https://placehold.co/48x48/222/D4AF37?text=C'}
                         alt={item.name}
                         className="w-12 h-12 object-cover border border-border-color flex-shrink-0"
                     />
