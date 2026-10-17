@@ -761,6 +761,7 @@ export default function App() {
     const [error, setError] = useState(null);
     const [category, setCategory] = useState('');
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [sort, setSort] = useState('newest');
     const [page, setPage] = useState(1);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -782,6 +783,15 @@ export default function App() {
     };
 
     useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    useEffect(() => {
+        let ignore = false; // NEW: Track if this request is stale
+
         const fetchProducts = async () => {
             setLoading(true);
             try {
@@ -790,22 +800,30 @@ export default function App() {
                     limit: 12,
                     sort,
                     ...(category && { category }),
-                    ...(search && { search }),
+                    ...(debouncedSearch && { search: debouncedSearch }),
                     ...(minPrice && { minPrice }),
                     ...(maxPrice && { maxPrice }),
                 });
                 const { data } = await api.get(`/api/products?${params}`);
-                setProducts(data.products);
-                setPagination({ pages: data.pages, total: data.total });
+                
+                // NEW: Only update React state if this request hasn't been superseded
+                if (!ignore) {
+                    setProducts(data.products);
+                    setPagination({ pages: data.pages, total: data.total });
+                }
             } catch {
-                setError('Failed to connect to backend.');
+                if (!ignore) setError('Failed to connect to backend.');
             }
-            setLoading(false);
+            if (!ignore) setLoading(false);
         };
         fetchProducts();
-    }, [page, sort, category, search, minPrice, maxPrice, refreshTrigger]);
 
-    useEffect(() => { setPage(1); }, [category, search, sort, minPrice, maxPrice]);
+        // NEW: Cleanup function runs when dependencies change before the fetch completes
+        return () => {
+            ignore = true; 
+        };
+    }, [page, sort, category, debouncedSearch, minPrice, maxPrice, refreshTrigger]);
+    useEffect(() => { setPage(1); }, [category, debouncedSearch, sort, minPrice, maxPrice]);
 
     const themeStyles = useMemo(() => `
         :root[data-theme='dark'] {
