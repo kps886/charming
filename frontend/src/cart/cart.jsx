@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CartContext } from './cartProvider';
 import { useAuth } from '../auth/AuthContext';
 import { DELIVERY_THRESHOLD, DELIVERY_FEE } from '../config/constants';
+import { optimizeImage } from '../utils/cloudinary';
 
 const TrashIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
@@ -50,7 +51,7 @@ const CartPage = () => {
                         {cartItems.map((item) => (
                             <div key={item._id} className="flex items-center gap-4 bg-secondary-bg p-4 border border-border-color">
                                 <img
-                                    src={item.images?.[0] || 'https://placehold.co/80x80/222222/D4AF37?text=C'}
+                                    src={optimizeImage(item.images?.[0]) || 'https://placehold.co/80x80/222222/D4AF37?text=C'}
                                     alt={item.name}
                                     className="w-20 h-20 object-cover border border-border-color flex-shrink-0"
                                 />

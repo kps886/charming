@@ -5,6 +5,7 @@ import { CartContext } from '../cart/cartProvider';
 import { useAuth } from '../auth/AuthContext';
 import { WishlistContext } from '../wishlist/WishlistContext';
 import SEOTags from '../components/SEOTags';
+import { optimizeImage } from '../utils/cloudinary';
 
 // ── Star components ────────────────────────────
 
@@ -143,7 +144,7 @@ const ProductDetailsPage = () => {
                             <div className="absolute inset-3 bg-border-color animate-pulse" />
                         )}
                         <img
-                            src={product.images?.[selectedImage] ||
+                            src={optimizeImage(product.images?.[selectedImage]) ||
                                 'https://placehold.co/600x600/222/D4AF37?text=Charming'}
                             alt={product.name}
                             onLoad={() => setImgLoaded(true)}
@@ -159,7 +160,7 @@ const ProductDetailsPage = () => {
                                         ? 'border-accent-gold'
                                         : 'border-border-color hover:border-text-secondary'
                                         }`}>
-                                    <img src={img} alt="" className="w-full h-full object-cover" />
+                                    <img src={optimizeImage(img)} alt="" className="w-full h-full object-cover" />
                                 </button>
                             ))}
                         </div>

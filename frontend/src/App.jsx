@@ -23,6 +23,7 @@ import { Toaster } from 'react-hot-toast';
 import { HelmetProvider } from 'react-helmet-async';
 import SEOTags from './components/SEOTags';
 import { ProductSkeleton } from './components/Skeleton';
+import { optimizeImage } from './utils/cloudinary';
 import { TermsOfService, PrivacyPolicy, ShippingPolicy, RefundPolicy } from './pages/LegalPages'; // Adjust path as needed
 
 // ── Icons ────────────────────────────────────────────────────
@@ -434,7 +435,7 @@ const ProductCard = ({ product }) => {
                 )}
                 <Link to={`/product/${product._id}`} onClick={saveScrollPosition}>
                     <img
-                        src={product.images?.[0] || 'https://placehold.co/400x400/222222/D4AF37?text=Charming'}
+                        src={optimizeImage(product.images?.[0]) || 'https://placehold.co/400x400/222222/D4AF37?text=Charming'}
                         alt={product.name}
                         onLoad={() => setImgLoaded(true)}
                         className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-in-out group-hover:scale-105 ${imgLoaded ? 'opacity-100 blur-0' : 'opacity-0 blur-sm'
