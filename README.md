@@ -25,13 +25,17 @@ npm install
 
 Edit `.env`:
 ```
-MONGO_URI=mongodb://127.0.0.1:27017/charming
+MONGO_URI=mongodb://127.0.0.1:27017/charming?replicaSet=rs0
 PORT=5001
 JWT_SECRET=change_this_to_a_long_random_string
 JWT_EXPIRE=30d
 ```
 
-Create your first admin account:
+Checkout uses MongoDB transactions. Use Atlas or an initialized replica set (local example above). Inventory reservations expire after 15 minutes. A payment captured after cancellation is recorded against the cancelled order for manual refund.
+
+Run the backend regression suite with `npm test` from the backend directory. Set `TEST_MONGO_URI` to a disposable replica set to include the database and HTTP tests. The suite creates and removes its own database.
+
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in the backend environment before creating the first admin account:
 ```bash
 node seed.js
 ```
@@ -212,6 +216,6 @@ JWT_EXPIRE=30d       # Token expiry
 - [ ] `node seed.js` to create admin user
 - [ ] `cd frontend && npm install`
 - [ ] `npm start` in both folders
-- [ ] Login at `http://localhost:3000` with `admin@charming.com` / `admin123456`
+- [ ] Log in with the admin credentials used during seeding.
 - [ ] Change admin password immediately via profile
 - [ ] Create shopkeeper and employee accounts via Admin Dashboard

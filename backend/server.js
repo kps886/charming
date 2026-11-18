@@ -10,6 +10,7 @@ import userRoutes from './routes/userRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import promoRoutes from './routes/promoRoutes.js';
 import analyticRoutes from './routes/analyticsRoutes.js';
+import { expireReservations } from './utils/orderInventory.js';
 import cartRoutes from './routes/cartRoutes.js';
 
 dotenv.config();
@@ -68,7 +69,16 @@ const connectDB = async () => {
     }
 };
 
-connectDB();
+async function sweepReservations() {
+    try {
+        await expireReservations();
+    } catch (err) {
+        console.error('Reservation expiry failed:', err.message);
+    } finally {
+        setTimeout(sweepReservations, 60000).unref();
+    }
+}
+connectDB().then(sweepReservations);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -76,7 +86,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
-app.use('/api/users', authLimiter, userRoutes); // Protect auth strictly
+const authPaths = ['login', 'register', 'resend-otp', 'verify-otp', 'forgotpassword', 'resetpassword'];
+app.use(authPaths.map(path => '/api/users/' + path), authLimiter);
+app.use('/api/users', apiLimiter, userRoutes);
 app.use('/api/products', apiLimiter, productRoutes);
 app.use('/api/orders', apiLimiter, orderRoutes);
 app.use('/api/promo', apiLimiter, promoRoutes);

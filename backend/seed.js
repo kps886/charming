@@ -2,7 +2,7 @@
  * Run this ONCE to create your first admin user:
  *   node seed.js
  *
- * Change the credentials below before running!
+ * Set ADMIN_EMAIL and ADMIN_PASSWORD before running.
  */
 
 import dotenv from 'dotenv';
@@ -22,16 +22,19 @@ const seedAdmin = async () => {
             process.exit(0);
         }
 
+        const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
+        if (!ADMIN_EMAIL || !ADMIN_PASSWORD) throw new Error('Set ADMIN_EMAIL and ADMIN_PASSWORD before seeding');
         const admin = await User.create({
             name: 'Admin',
-            email: 'admin@charming.com',
-            password: 'admin123456',   // Change this!
+            email: ADMIN_EMAIL,
+            password: ADMIN_PASSWORD,
             role: 'admin',
+            isVerified: true,
+            unverifiedExpireAt: null,
         });
 
         console.log('✅ Admin user created successfully!');
         console.log(`   Email:    ${admin.email}`);
-        console.log(`   Password: admin123456  ← CHANGE THIS IN PRODUCTION`);
         process.exit(0);
     } catch (error) {
         console.error('Error seeding admin:', error.message);

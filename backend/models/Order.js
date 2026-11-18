@@ -39,6 +39,8 @@ const orderSchema = new mongoose.Schema({
     promoCode:     { type: String, default: null },
     promoDiscount: { type: Number, default: 0 },
 
+    reservationExpiresAt: { type: Date, index: true },
+
     paymentMethod: {
         type: String,
         enum: ['razorpay'],

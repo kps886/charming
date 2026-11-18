@@ -32,7 +32,7 @@ router.post('/register', async (req, res) => {
 
         const user = await User.create({ name, email, password, role: 'user' });
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otp = crypto.randomInt(100000, 1000000).toString();
         user.otp = otp;
         user.otpExpire = Date.now() + 10 * 60 * 1000; // 10 mins
         await user.save();
@@ -123,7 +123,7 @@ router.post('/resend-otp', async (req, res) => {
         }
 
         // Generate new 6-digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otp = crypto.randomInt(100000, 1000000).toString();
         user.otp = otp;
         user.otpExpire = Date.now() + 10 * 60 * 1000; // 10 mins
         user.otpResendCount += 1; // Increment the counter!
@@ -161,20 +161,16 @@ router.post('/verify-otp', async (req, res) => {
     try {
         const { email, otp } = req.body;
 
-        const user = await User.findOne({ email });
-        if (!user) return res.status(404).json({ message: 'User not found' });
-        if (user.isVerified) return res.status(400).json({ message: 'Account is already verified' });
-
-        if (user.otp !== otp || user.otpExpire < Date.now()) {
+        if (typeof email !== 'string' || typeof otp !== 'string' || !/^\d{6}$/.test(otp)) {
             return res.status(400).json({ message: 'Invalid or expired OTP' });
         }
 
-        // Success! Verify user and clear OTP
-        user.isVerified = true;
-        user.otp = undefined;
-        user.otpExpire = undefined;
-        user.unverifiedExpireAt = undefined;
-        await user.save();
+        const user = await User.findOneAndUpdate(
+            { email, otp, otpExpire: { $gt: new Date() }, isVerified: { $ne: true }, isActive: true },
+            { $set: { isVerified: true }, $unset: { otp: 1, otpExpire: 1, unverifiedExpireAt: 1 } },
+            { returnDocument: 'after' }
+        );
+        if (!user) return res.status(400).json({ message: 'Invalid or expired OTP' });
 
         // Log them in
         res.json({
@@ -288,7 +284,7 @@ router.post('/create', protect, adminOnly, async (req, res) => {
             return res.status(400).json({ message: 'User with this email already exists' });
         }
 
-        const user = await User.create({ name, email, password, role });
+        const user = await User.create({ name, email, password, role, isVerified: true, unverifiedExpireAt: null });
 
         res.status(201).json({
             _id: user._id,

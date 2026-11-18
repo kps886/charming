@@ -298,6 +298,7 @@ const CheckoutPage = () => {
                 name: 'Charming',
                 description: 'Order Payment',
                 order_id: data.razorpayOrderId,
+                timeout: data.checkoutTimeoutSeconds,
                 prefill: {
                     name: user.name,
                     email: user.email,
@@ -316,15 +317,21 @@ const CheckoutPage = () => {
                         });
                         clearCart();
                         navigate(`/order-success/${data.orderId}`);
-                    } catch {
-                        setError('Payment was received but verification failed. Contact support with your payment ID: ' + response.razorpay_payment_id);
+                    } catch (err) {
+                        const message = err.response?.data?.message || 'Payment verification failed. Contact support.';
+                        setError(message + ' Payment ID: ' + response.razorpay_payment_id);
                         setPlacing(false);
                     }
                 },
 
                 modal: {
-                    ondismiss: () => {
-                        setError('Payment was cancelled. Your order has not been placed.');
+                    ondismiss: async () => {
+                        try {
+                            await api.put('/api/orders/' + data.orderId + '/cancel');
+                            setError('Checkout cancelled.');
+                        } catch {
+                            setError('Checkout closed. Check My Orders for the latest status.');
+                        }
                         setPlacing(false);
                     },
                 },

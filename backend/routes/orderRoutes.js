@@ -1,12 +1,14 @@
 import express from 'express';
+import mongoose from 'mongoose';
+import { combineItems, reserveOrder, completePayment, releaseReservation, orderError } from '../utils/orderInventory.js';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import PromoCode from '../models/PromoCode.js';
-import { protect, employeeAndAbove, shopkeeperAndAbove } from '../middleware/authMiddleware.js';
+import { protect, employeeAndAbove } from '../middleware/authMiddleware.js';
 import User from '../models/User.js';
-import { sendOrderConfirmation, sendStatusUpdate, sendLowStockAlert } from '../utils/emailService.js';
+import { sendStatusUpdate } from '../utils/emailService.js';
 const router = express.Router();
 
 const razorpay = new Razorpay({
@@ -23,9 +25,6 @@ const razorpay = new Razorpay({
 router.post('/create-payment', protect, async (req, res) => {
     const { items, shippingAddress, promoCode } = req.body;
 
-    if (!items || items.length === 0) {
-        return res.status(400).json({ message: 'No items in order' });
-    }
     if (!shippingAddress) {
         return res.status(400).json({ message: 'Shipping address is required' });
     }
@@ -35,7 +34,7 @@ router.post('/create-payment', protect, async (req, res) => {
         let subtotal = 0;
         const verifiedItems = [];
 
-        for (const item of items) {
+        for (const item of combineItems(items)) {
             const product = await Product.findById(item.product);
             if (!product) {
                 return res.status(404).json({ message: `Product ${item.product} not found` });
@@ -80,11 +79,11 @@ router.post('/create-payment', protect, async (req, res) => {
         const razorpayOrder = await razorpay.orders.create({
             amount: Math.round(total * 100),
             currency: 'INR',
-            receipt: `rcpt_${Date.now()}`,
+            receipt: crypto.randomUUID(),
         });
 
         // 6. Save order to DB in 'pending' state
-        const order = await Order.create({
+        const order = await reserveOrder({
             user: req.user._id,
             items: verifiedItems,
             shippingAddress,
@@ -102,6 +101,7 @@ router.post('/create-payment', protect, async (req, res) => {
         res.status(201).json({
             orderId: order._id,
             razorpayOrderId: razorpayOrder.id,
+            checkoutTimeoutSeconds: Math.max(1, Math.floor((order.reservationExpiresAt.getTime() - Date.now()) / 1000)),
             amount: razorpayOrder.amount,   // in paise
             currency: 'INR',
             keyId: process.env.RAZORPAY_KEY_ID,
@@ -112,8 +112,8 @@ router.post('/create-payment', protect, async (req, res) => {
             total: Math.round(total),
         });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Error creating payment order' });
+        if (!err.status) console.error(err);
+        res.status(err.status || 500).json({ message: err.status ? err.message : 'Error creating payment order' });
     }
 });
 
@@ -127,63 +127,25 @@ router.post('/verify-payment', protect, async (req, res) => {
     const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
     try {
-        // 1. Verify HMAC signature
-        const body = razorpayOrderId + '|' + razorpayPaymentId;
-        const expected = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(body)
-            .digest('hex');
-
-        if (expected !== razorpaySignature) {
-            return res.status(400).json({ message: 'Payment verification failed — invalid signature' });
+        if (!mongoose.isObjectIdOrHexString(orderId) || typeof razorpayOrderId !== 'string'
+            || typeof razorpayPaymentId !== 'string' || !razorpayPaymentId) {
+            return res.status(400).json({ message: 'Invalid payment identifiers' });
         }
-
-        // 2. Find and update our order
-        const order = await Order.findById(orderId);
-        if (!order) return res.status(404).json({ message: 'Order not found' });
-
-        order.paymentStatus = 'paid';
-        order.orderStatus = 'processing';
-        order.razorpayPaymentId = razorpayPaymentId;
-        order.razorpaySignature = razorpaySignature;
-        order.paidAt = new Date();
-        await order.save();
-        const buyer = await User.findById(order.user).select('name email');
-        if (buyer) {
-            await sendOrderConfirmation(order, buyer.email, buyer.name);
+        const filter = { _id: orderId, user: req.user._id, razorpayOrderId };
+        const stored = await Order.findOne(filter).select('razorpayOrderId');
+        if (!stored) return res.status(404).json({ message: 'Order not found' });
+        const body = stored.razorpayOrderId + '|' + razorpayPaymentId;
+        if (!validSignature(body, razorpaySignature, process.env.RAZORPAY_KEY_SECRET)) {
+            return res.status(400).json({ message: 'Invalid payment signature' });
         }
-
-        // 3. Deduct stock for each item
-        for (const item of order.items) {
-            const updatedProduct = await Product.findByIdAndUpdate(item.product, {
-                $inc: { stock: -item.quantity },
-            }, { new: true });
-
-            if (updatedProduct && updatedProduct.stock <= 0) {
-                const staffMembers = await User.find({ 
-                    role: { $in: ['admin', 'shopkeeper'] } 
-                }).select('email');
-                
-                const staffEmails = staffMembers.map(u => u.email);
-                
-                if (staffEmails.length > 0) {
-                    await sendLowStockAlert(updatedProduct, staffEmails);
-                }
-            }
+        const order = await completePayment(filter, razorpayPaymentId, razorpaySignature);
+        if (order.orderStatus === 'cancelled') {
+            return res.status(409).json({ message: 'Payment received for a cancelled order. Contact support for a refund.' });
         }
-
-        // 4. Increment promo code usage
-        if (order.promoCode) {
-            await PromoCode.findOneAndUpdate(
-                { code: order.promoCode },
-                { $inc: { usedCount: 1 } }
-            );
-        }
-
         res.json({ message: 'Payment verified', orderId: order._id, orderStatus: order.orderStatus });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Error verifying payment' });
+        res.status(err.status || 500).json({ message: err.status ? err.message : 'Error verifying payment' });
     }
 });
 
@@ -261,25 +223,32 @@ router.put('/:id/status', protect, employeeAndAbove, async (req, res) => {
     }
 
     try {
-        const order = await Order.findById(req.params.id);
-        if (!order) return res.status(404).json({ message: 'Order not found' });
-
-        order.orderStatus = orderStatus;
-        if (trackingNumber) order.trackingNumber = trackingNumber;
-        if (orderStatus === 'delivered') order.deliveredAt = new Date();
-        if (orderStatus === 'cancelled') {
-            order.cancelledAt = new Date();
-            order.cancelReason = req.body.cancelReason || null;
-        }
-
-        await order.save();
+        const order = await mongoose.connection.transaction(async session => {
+            const order = await Order.findById(req.params.id).session(session);
+            if (!order) throw orderError(404, 'Order not found');
+            if (order.orderStatus === 'cancelled' && orderStatus !== 'cancelled') {
+                throw orderError(409, 'A cancelled order cannot be reopened');
+            }
+            if (order.paymentStatus !== 'paid' && !['pending', 'cancelled'].includes(orderStatus)) {
+                throw orderError(409, 'Payment required before fulfillment');
+            }
+            order.orderStatus = orderStatus;
+            if (trackingNumber) order.trackingNumber = trackingNumber;
+            if (orderStatus === 'delivered') order.deliveredAt = new Date();
+            if (orderStatus === 'cancelled') {
+                await releaseReservation(order, session);
+                order.cancelledAt = new Date();
+                order.cancelReason = req.body.cancelReason || null;
+            }
+            return order.save({ session });
+        });
         const buyer = await User.findById(order.user).select('name email');
         if (buyer) {
             await sendStatusUpdate(order, buyer.email, buyer.name);
         }
         res.json(order);
     } catch (err) {
-        res.status(500).json({ message: 'Error updating order status' });
+        res.status(err.status || 500).json({ message: err.status ? err.message : 'Error updating order status' });
     }
 });
 
@@ -288,115 +257,49 @@ router.put('/:id/status', protect, employeeAndAbove, async (req, res) => {
 // @access  Private
 router.put('/:id/cancel', protect, async (req, res) => {
     try {
-        const order = await Order.findById(req.params.id);
-
-        if (!order) {
-            return res.status(404).json({ message: 'Order not found' });
-        }
-
-        // 1. Security Check: Does this order actually belong to the person requesting the cancel?
-        if (order.user.toString() !== req.user._id.toString()) {
-            return res.status(401).json({ message: 'Not authorized to modify this order' });
-        }
-
-        // 2. Logic Check: We ONLY cancel if it hasn't been processed yet
-        if (order.orderStatus !== 'pending') {
-            return res.status(400).json({ 
-                message: `You cannot cancel an order that is already ${order.orderStatus}. Please contact support.` 
-            });
-        }
-
-        // 3. Update status
-        order.orderStatus = 'cancelled';
-        await order.save();
-
+        const order = await mongoose.connection.transaction(async session => {
+            const order = await Order.findOne({ _id: req.params.id, user: req.user._id }).session(session);
+            if (!order) throw orderError(404, 'Order not found');
+            if (order.orderStatus !== 'pending' || order.paymentStatus !== 'pending') {
+                throw orderError(409, 'Only pending orders can be cancelled');
+            }
+            await releaseReservation(order, session);
+            order.orderStatus = 'cancelled';
+            order.cancelledAt = new Date();
+            return order.save({ session });
+        });
         res.json({ message: 'Order cancelled successfully', order });
     } catch (error) {
-        res.status(500).json({ message: 'Server error cancelling order' });
+        res.status(error.status || 500).json({ message: error.status ? error.message : 'Server error cancelling order' });
     }
 });
 
 // ─────────────────────────────────────────────
 // POST /api/orders/webhook  →  Razorpay Server-to-Server Fallback
 // ─────────────────────────────────────────────
+function validSignature(body, signature, secret) {
+    if (!secret || !body || typeof signature !== 'string' || !/^[a-f0-9]{64}$/.test(signature)) return false;
+    const expected = crypto.createHmac('sha256', secret).update(body).digest();
+    return crypto.timingSafeEqual(expected, Buffer.from(signature, 'hex'));
+}
+
 router.post('/webhook', async (req, res) => {
-    // Razorpay webhook secret (Set this in your .env / Render config)
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-
-    // 1. Verify the signature to ensure the request is actually from Razorpay
-    const shasum = crypto.createHmac('sha256', secret);
-    shasum.update(req.rawBody);
-    const digest = shasum.digest('hex');
-    const signature = req.headers['x-razorpay-signature'] || '';
-    const expectedBuffer = Buffer.from(digest);
-    const signatureBuffer = Buffer.from(signature);
-
-    if (expectedBuffer.length === signatureBuffer.length && crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
-        const event = req.body.event;
-
-        // 2. We only care if the payment was successfully captured
-        if (event === 'payment.captured' || event === 'order.paid') {
-            const paymentEntity = req.body.payload.payment.entity;
-            const razorpayOrderId = paymentEntity.order_id;
-            const razorpayPaymentId = paymentEntity.id;
-
-            try {
-                const order = await Order.findOneAndUpdate(
-                    { razorpayOrderId, paymentStatus: 'pending' },
-                    { $set: { paymentStatus: 'paid', razorpayPaymentId, paidAt: new Date() } },
-                    { new: true }
-                );
-
-                if (order) {
-                    if (order.orderStatus === 'cancelled') {
-                        // Do not fulfill or revive. Money was taken on a cancelled order; admin must refund.
-                        console.warn(`Payment captured for cancelled order ${order._id}`);
-                    } else {
-                        order.orderStatus = 'processing';
-                        await order.save();
-
-                        // Send email
-                        const buyer = await User.findById(order.user).select('name email');
-                        if (buyer) {
-                            await sendOrderConfirmation(order, buyer.email, buyer.name);
-                        }
-
-                        // Deduct stock
-                        for (const item of order.items) {
-                            const updatedProduct = await Product.findByIdAndUpdate(item.product, {
-                                $inc: { stock: -item.quantity },
-                            }, { new: true });
-
-                            if (updatedProduct && updatedProduct.stock <= 0) {
-                                const staffMembers = await User.find({ 
-                                    role: { $in: ['admin', 'shopkeeper'] } 
-                                }).select('email');
-                                
-                                const staffEmails = staffMembers.map(u => u.email);
-                                
-                                if (staffEmails.length > 0) {
-                                    await sendLowStockAlert(updatedProduct, staffEmails);
-                                }
-                            }
-                        }
-
-                        // Increment promo usage
-                        if (order.promoCode) {
-                            await PromoCode.findOneAndUpdate(
-                                { code: order.promoCode },
-                                { $inc: { usedCount: 1 } }
-                            );
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error("Webhook processing error:", err);
-            }
-        }
-        return res.status(200).json({ status: 'ok' });
-    } else {
-        return res.status(400).json({ message: 'Invalid signature' });
+    if (!validSignature(req.rawBody, req.headers['x-razorpay-signature'], process.env.RAZORPAY_WEBHOOK_SECRET)) {
+        return res.status(400).json({ message: 'Invalid webhook signature' });
     }
+    if (['payment.captured', 'order.paid'].includes(req.body.event)) {
+        const payment = req.body.payload?.payment?.entity;
+        if (typeof payment?.order_id !== 'string' || typeof payment.id !== 'string') {
+            return res.status(400).json({ message: 'Missing payment identifiers' });
+        }
+        try {
+            await completePayment({ razorpayOrderId: payment.order_id }, payment.id);
+        } catch (err) {
+            console.error('Webhook processing failed:', err.message);
+            return res.status(err.status || 500).json({ message: 'Could not record payment' });
+        }
+    }
+    res.json({ status: 'ok' });
 });
 
 export default router;
