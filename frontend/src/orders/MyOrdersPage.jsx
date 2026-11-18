@@ -73,7 +73,7 @@ const MyOrdersPage = () => {
     // ✅ NEW: Cancel Order Logic
     const handleCancelOrder = async (orderId) => {
         // Double check so they don't misclick
-        if (!window.confirm("Are you sure you want to cancel this order? If you have already paid, a refund will be initiated.")) return;
+        if (!window.confirm("Are you sure you want to cancel this order?")) return;
 
         setCancellingId(orderId);
         try {
@@ -148,6 +148,8 @@ const MyOrdersPage = () => {
                                 <div className="border-t border-border-color p-4 md:p-6 space-y-6 bg-primary-bg/30">
                                     {/* Tracker */}
                                     <OrderTracker status={order.orderStatus} />
+                                    {order.orderStatus === 'cancelled' && order.paymentStatus === 'paid' && <p>Refund pending</p>}
+                                    {order.paymentStatus === 'refunded' && <p>Refund complete {order.refundReference && '· ' + order.refundReference}</p>}
 
                                     {/* Tracking number */}
                                     {order.trackingNumber && (

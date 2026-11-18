@@ -10,6 +10,7 @@ import userRoutes from './routes/userRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import promoRoutes from './routes/promoRoutes.js';
 import analyticRoutes from './routes/analyticsRoutes.js';
+import { deliverRestockAlerts } from './utils/restockAlerts.js';
 import { expireReservations } from './utils/orderInventory.js';
 import cartRoutes from './routes/cartRoutes.js';
 
@@ -78,7 +79,20 @@ async function sweepReservations() {
         setTimeout(sweepReservations, 60000).unref();
     }
 }
-connectDB().then(sweepReservations);
+
+async function sendRestockAlerts() {
+    try {
+        await deliverRestockAlerts();
+    } catch (err) {
+        console.error('Restock email queue failed:', err.message);
+    } finally {
+        setTimeout(sendRestockAlerts, 60000).unref();
+    }
+}
+connectDB().then(() => {
+    sweepReservations();
+    sendRestockAlerts();
+});
 
 // Health check
 app.get('/api/health', (req, res) => {

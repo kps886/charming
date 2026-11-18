@@ -1,3 +1,4 @@
+import RestockAlert from './RestockAlert';
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api';
@@ -206,6 +207,8 @@ const ProductDetailsPage = () => {
                             : <span className="text-red-400">✗ Out of Stock</span>
                         }
                     </p>
+
+                    {product.stock <= 0 && <RestockAlert key={product._id + (user?._id || '')} productId={product._id} user={user} />}
 
                     <p className="text-sm leading-relaxed text-text-secondary mb-6">
                         {product.description}

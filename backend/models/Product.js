@@ -34,6 +34,7 @@ const productSchema = new mongoose.Schema({
         required: true,
         default: 0
     },
+    restockSubscribers: { type: [mongoose.Schema.Types.ObjectId], select: false, default: undefined },
     variations: [variationSchema],
     tags: [String],
     reviews: [{
@@ -41,6 +42,8 @@ const productSchema = new mongoose.Schema({
         name: String,
         rating: Number,
         comment: String,
+        isApproved: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now },
     }],
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,

@@ -1,3 +1,6 @@
+import RefundRecord from './RefundRecord';
+import useInventoryPage from './useInventoryPage';
+import InventoryPages from './InventoryPages';
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 import { useAuth } from '../auth/AuthContext';
@@ -19,7 +22,7 @@ const emptyForm = {
 };
 
 // ── Reviews panel ─────────────────────────────────────────────
-const ReviewsPanel = () => {
+const ReviewsPanel = ({ onChange }) => {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('pending'); // 'pending' | 'approved' | 'all'
@@ -27,20 +30,8 @@ const ReviewsPanel = () => {
     const fetchAllReviews = async () => {
         setLoading(true);
         try {
-            // Fetch all products to extract their reviews
-            const { data } = await api.get('/api/products');
-
-            // Flatten reviews array: map over products, extract reviews, and attach the product info to each review
-            const allReviews = data.products.flatMap(p =>
-                (p.reviews || []).map(r => ({
-                    ...r,
-                    productId: p._id,
-                    productName: p.name,
-                    productImage: p.images?.[0]
-                }))
-            ).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)); // Sort newest first
-
-            setReviews(allReviews);
+            const { data } = await api.get('/api/products/staff-reviews');
+            setReviews(data);
         } catch {
             toast.error('Failed to fetch reviews');
         }
@@ -49,10 +40,11 @@ const ReviewsPanel = () => {
 
     useEffect(() => { fetchAllReviews(); }, []);
 
-    const handleToggleApproval = async (productId, reviewId) => {
+    const handleToggleApproval = async (productId, reviewId, isApproved) => {
         try {
-            await api.put(`/api/products/${productId}/reviews/${reviewId}/toggle`);
-            fetchAllReviews(); // Refresh the list
+            await api.put(`/api/products/${productId}/reviews/${reviewId}/toggle`, { isApproved });
+            fetchAllReviews();
+            onChange();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to update review status');
         }
@@ -66,7 +58,6 @@ const ReviewsPanel = () => {
 
     return (
         <div>
-            {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 text-red-400 rounded text-sm">{error}</div>}
 
             <div className="flex gap-2 mb-5">
                 {['pending', 'approved', 'all'].map(f => (
@@ -114,7 +105,7 @@ const ReviewsPanel = () => {
                             {/* Action (Right) */}
                             <div className="flex items-center md:justify-end border-t md:border-t-0 pt-3 md:pt-0">
                                 <button
-                                    onClick={() => handleToggleApproval(review.productId, review._id)}
+                                    onClick={() => handleToggleApproval(review.productId, review._id, !review.isApproved)}
                                     className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded border transition-colors ${review.isApproved
                                         ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
                                         : 'border-green-500/50 text-green-400 hover:bg-green-500/10'
@@ -149,7 +140,7 @@ const Tab = ({ label, active, onClick, badge }) => (
 );
 
 // ── Orders panel (shared with admin) ─────────────────────────
-const OrdersPanel = () => {
+const OrdersPanel = ({ onChange }) => {
     const [orders, setOrders] = useState([]);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -187,6 +178,7 @@ const OrdersPanel = () => {
             toast.success('Order updated successfully');
             setStatusEdit(prev => { const n = { ...prev }; delete n[orderId]; return n; });
             fetchOrders();
+            onChange();
         } catch { toast.error('Failed to update order'); }
         setUpdating(null);
     };
@@ -194,14 +186,14 @@ const OrdersPanel = () => {
     return (
         <div>
             <div className="flex gap-2 flex-wrap mb-5">
-                {['all', ...STATUSES].map(s => (
+                {['all', ...STATUSES, 'needs-refund'].map(s => (
                     <button key={s} onClick={() => setFilter(s)}
                         className={`px-3 py-1.5 text-xs font-bold uppercase rounded border
                             transition-colors ${filter === s
                                 ? 'bg-accent-gold text-primary-bg border-accent-gold'
                                 : 'border-border-color text-text-secondary hover:border-text-secondary'
                             }`}>
-                        {s}
+                        {s === 'needs-refund' ? 'Needs refund' : s}
                     </button>
                 ))}
             </div>
@@ -250,6 +242,7 @@ const OrdersPanel = () => {
 
                             {expanded === order._id && (
                                 <div className="border-t border-border-color p-4 space-y-4">
+                                    <RefundRecord order={order} onRecorded={fetchOrders} />
                                     <div className="space-y-2">
                                         {order.items.map((item, i) => (
                                             <div key={i} className="flex items-center gap-3 text-sm">
@@ -348,22 +341,13 @@ const OrdersPanel = () => {
 };
 
 // ── Products panel ────────────────────────────────────────────
-const ProductsPanel = ({ user }) => {
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
+const ProductsPanel = ({ user, onChange }) => {
+    const { products, loading, refresh: fetchProducts, summary, ...pagination } = useInventoryPage();
     const [showForm, setShowForm] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
     const [form, setForm] = useState(emptyForm);
 
-    const fetchProducts = async () => {
-        setLoading(true);
-        try {
-            const { data } = await api.get('/api/products');
-            setProducts(data.products);
-        } catch { toast.error('Failed to fetch products'); }
-        setLoading(false);
-    };
-    useEffect(() => { fetchProducts(); }, []);
+
 
     const openAddForm = () => { setEditingProduct(null); setForm(emptyForm); setShowForm(true); toast.error(''); toast.success(''); };
     const openEditForm = (p) => {
@@ -398,20 +382,20 @@ const ProductsPanel = ({ user }) => {
                     { headers: { 'Content-Type': 'multipart/form-data' } });
                 toast.success('Product created');
             }
-            setShowForm(false); fetchProducts();
+            setShowForm(false); fetchProducts(); onChange();
         } catch (err) { toast.error(err.response?.data?.message || 'Error saving product'); }
     };
 
     const handleDelete = async (id, name) => {
         if (!window.confirm(`Delete "${name}"?`)) return;
-        try { await api.delete(`/api/products/${id}`); fetchProducts(); }
+        try { await api.delete(`/api/products/${id}`); fetchProducts(); onChange(); }
         catch { toast.error('Failed to delete product'); }
     };
 
     return (
         <div>
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Products ({products.length})</h2>
+                <h2 className="text-lg font-semibold">Products ({summary.products})</h2>
                 <button onClick={openAddForm}
                     className="bg-accent-gold text-primary-bg px-4 py-2 text-sm font-bold
                         uppercase hover:bg-yellow-500 transition-colors">
@@ -525,6 +509,7 @@ const ProductsPanel = ({ user }) => {
                             ))}
                         </tbody>
                     </table>
+                    <InventoryPages {...pagination} />
                     {products.length === 0 && (
                         <p className="text-center py-12 text-text-secondary">No products yet.</p>
                     )}
@@ -540,20 +525,11 @@ const ShopkeeperDashboard = () => {
     const [tab, setTab] = useState('orders');
 
     const [counts, setCounts] = useState({ products: 0, orders: 0, pending: 0, outOfStock: 0, pendingReviews: 0 });
-    useEffect(() => {
-        Promise.all([api.get('/api/products'), api.get('/api/orders')]).then(([p, o]) => {
-            const allUnapprovedReviews = p.data.flatMap(prod =>
-                (prod.reviews || []).filter(r => !r.isApproved)
-            ).length;
-            setCounts({
-                products: p.data.length,
-                orders: o.data.length,
-                pending: o.data.filter(x => x.orderStatus === 'pending').length,
-                outOfStock: p.data.filter(x => x.stock === 0).length,
-                pendingReviews: allUnapprovedReviews
-            });
-        }).catch(() => { });
-    }, [tab]);
+    const refreshCounts = useCallback(() => {
+        api.get('/api/orders/staff-summary').then(({ data }) => setCounts(data))
+            .catch(() => toast.error('Failed to load dashboard totals'));
+    }, []);
+    useEffect(() => { refreshCounts(); }, [tab, refreshCounts]);
 
     return (
         <div className="container mx-auto py-6 px-4 max-w-7xl">
@@ -594,9 +570,9 @@ const ShopkeeperDashboard = () => {
                 <Tab label="Reviews" active={tab === 'reviews'} onClick={() => setTab('reviews')} badge={counts.pendingReviews} />
             </div>
 
-            {tab === 'orders' && <OrdersPanel />}
-            {tab === 'products' && <ProductsPanel user={user} />}
-            {tab === 'reviews' && <ReviewsPanel />}
+            {tab === 'orders' && <OrdersPanel onChange={refreshCounts} />}
+            {tab === 'products' && <ProductsPanel user={user} onChange={refreshCounts} />}
+            {tab === 'reviews' && <ReviewsPanel onChange={refreshCounts} />}
         </div>
     );
 };

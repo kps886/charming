@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/', protect, async (req, res) => {
     try {
         let cart = await Cart.findOne({ user: req.user._id })
-            .populate('items.product'); // Fetches name, price, images, etc.
+            .populate('items.product', '-reviews'); // Fetches name, price, images, etc.
         
         if (!cart) {
             cart = await Cart.create({ user: req.user._id, items: [] });

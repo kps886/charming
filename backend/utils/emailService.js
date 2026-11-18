@@ -11,6 +11,15 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+export async function sendRestockEmail(email, product) {
+    await transporter.sendMail({
+        from: process.env.EMAIL_FROM,
+        to: email,
+        subject: product.name + ' is back in stock',
+        text: product.name + ' is available again. ' + process.env.FRONTEND_URL + '/product/' + product.id,
+    });
+}
+
 // ── Shared email wrapper ──────────────────────────────────────
 export const sendEmail = async ({ to, subject, html }) => {
     try {

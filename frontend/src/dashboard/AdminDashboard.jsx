@@ -1,3 +1,4 @@
+import RefundRecord from './RefundRecord';
 import React, { useState, useEffect, useCallback } from 'react';
 import api from './../api';
 import { useAuth } from '../auth/AuthContext';
@@ -265,26 +266,25 @@ const OrdersPanel = () => {
 
     const STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
-    const filtered = filter === 'all' ? orders : orders.filter(o => o.orderStatus === filter);
 
     return (
         <div>
             {/* Filter bar */}
             <div className="flex gap-2 flex-wrap mb-5">
-                {['all', ...STATUSES].map(s => (
+                {['all', ...STATUSES, 'needs-refund'].map(s => (
                     <button key={s} onClick={() => setFilter(s)}
                         className={`px-3 py-1.5 text-xs font-bold uppercase rounded border transition-colors ${filter === s
                             ? 'bg-accent-gold text-primary-bg border-accent-gold'
                             : 'border-border-color text-text-secondary hover:border-text-secondary'
                             }`}>
-                        {s} {s === 'all' ? `(${orders.length})` : `(${orders.filter(o => o.orderStatus === s).length})`}
+                        {s === 'needs-refund' ? 'Needs refund' : s}
                     </button>
                 ))}
             </div>
 
             {loading ? (
                 <p className="text-center py-12 text-text-secondary animate-pulse">Loading orders...</p>
-            ) : filtered.length === 0 ? (
+            ) : orders.length === 0 ? (
                 <p className="text-center py-12 text-text-secondary">No orders found.</p>
             ) : (
                 <div className="space-y-3">
@@ -330,6 +330,7 @@ const OrdersPanel = () => {
                             {/* Expanded detail */}
                             {expanded === order._id && (
                                 <div className="border-t border-border-color p-4 space-y-5">
+                                    <RefundRecord order={order} onRecorded={fetchOrders} />
                                     {/* Items */}
                                     <div>
                                         <p className="text-xs font-bold uppercase tracking-wider

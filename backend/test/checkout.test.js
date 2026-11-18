@@ -14,6 +14,7 @@ import User from '../models/User.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import PromoCode from '../models/PromoCode.js';
+import { deliverRestockAlerts } from '../utils/restockAlerts.js';
 import { combineItems, expireReservations, reserveOrder } from '../utils/orderInventory.js';
 
 it('combines duplicate product IDs and rejects invalid quantities', () => {
@@ -44,6 +45,7 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
         app.use(express.json({ verify(req, res, buf) { req.rawBody = buf; } }));
         app.use('/users', users);
         app.use('/orders', orders);
+        app.use('/products', (await import('../routes/productRoutes.js')).default);
         server = app.listen(0, '127.0.0.1');
         await new Promise(resolve => server.once('listening', resolve));
         base = 'http://127.0.0.1:' + server.address().port;
@@ -80,6 +82,119 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
             order_id: paid.razorpayOrderId, id: paid.razorpayPaymentId } } } };
         return post('/orders/webhook', data, { 'x-razorpay-signature': signature(JSON.stringify(data), process.env.RAZORPAY_WEBHOOK_SECRET) });
     }
+
+    async function staffHeaders(role = 'shopkeeper') {
+        const staff = await User.create({ email: randomUUID() + '@example.test', name: 'Staff',
+            password: 'test-password', role, isVerified: true });
+        return { authorization: 'Bearer ' + jwt.sign({ id: staff.id }, process.env.JWT_SECRET),
+            'content-type': 'application/json' };
+    }
+
+    it('pages inventory and counts the entire catalog after a staff stock edit', async () => {
+        for (let i = 0; i < 13; i++) await product(1);
+        const page = await (await fetch(base + '/products?page=2')).json();
+        assert.equal(page.total, 13);
+        assert.equal(page.products.length, 1);
+        const headers = await staffHeaders('employee');
+        const response = await fetch(base + '/products/' + page.products[0]._id, {
+            method: 'PUT', headers, body: JSON.stringify({ stock: 0 }),
+        });
+        assert.equal(response.status, 200);
+        const stats = await (await fetch(base + '/products/staff-summary', { headers })).json();
+        assert.deepEqual(stats, { products: 13, lowStock: 12, outOfStock: 1 });
+        const overview = await (await fetch(base + '/orders/staff-summary', { headers: await staffHeaders() })).json();
+        assert.equal(overview.products, 13);
+        assert.equal(overview.outOfStock, 1);
+    });
+
+    it('keeps pending reviews private and persists staff approval and ratings', async () => {
+        const item = await product(1);
+        const url = base + '/products/' + item.id;
+        const submitted = await post('/products/' + item.id + '/reviews', { rating: 5, comment: 'Great' });
+        assert.equal(submitted.status, 201);
+        assert.deepEqual((await (await fetch(url)).json()).reviews, []);
+        const headers = await staffHeaders();
+        const queue = await (await fetch(base + '/products/staff-reviews', { headers })).json();
+        const entry = queue.find(review => review.productId === item.id);
+        assert.ok(entry);
+        for (const isApproved of [true, true, false]) {
+            const response = await fetch(url + '/reviews/' + entry._id + '/toggle', {
+                method: 'PUT', headers, body: JSON.stringify({ isApproved }),
+            });
+            assert.equal(response.status, 200);
+            const visible = await (await fetch(url)).json();
+            assert.equal(visible.reviews.length, Number(isApproved));
+            assert.equal(visible.avgRating, isApproved ? 5 : 0);
+        }
+    });
+
+    it('lists captured cancellations and lets staff record a completed refund once', async () => {
+        const item = await product(1);
+        const order = await (await checkout(item)).json();
+        await Order.updateOne({ _id: order.orderId }, { orderStatus: 'cancelled', paymentStatus: 'paid' });
+        const headers = await staffHeaders();
+        const queue = () => fetch(base + '/orders?status=needs-refund', { headers }).then(r => r.json());
+        assert.ok((await queue()).orders.some(o => o._id === order.orderId));
+        const record = h => fetch(base + '/orders/' + order.orderId + '/refund', {
+            method: 'PUT', headers: h, body: JSON.stringify({ reference: 'rfnd_test' }),
+        });
+        assert.equal((await record(await staffHeaders('employee'))).status, 403);
+        assert.equal((await record(headers)).status, 200);
+        assert.equal((await record(headers)).status, 409);
+        assert.ok(!(await queue()).orders.some(o => o._id === order.orderId));
+        const my = await (await fetch(base + '/orders/my', { headers: { authorization: 'Bearer ' + token } })).json();
+        assert.equal(my.find(o => o._id === order.orderId).refundReference, 'rfnd_test');
+    });
+
+    it('emails an opted-in buyer once for a staff restock, never for a released reservation', async () => {
+        const item = await product(1);
+        const order = await (await checkout(item)).json();
+        const path = base + '/products/' + item.id;
+        const headers = { authorization: 'Bearer ' + token };
+        const optIn = () => fetch(path + '/restock-alert', { method: 'PUT', headers });
+        const status = () => fetch(path + '/restock-alert', { headers }).then(r => r.json());
+        assert.equal((await optIn()).status, 200);
+        assert.equal((await optIn()).status, 200);
+        assert.equal((await status()).subscribed, true);
+        assert.equal((await fetch(path + '/restock-alert', { method: 'DELETE', headers })).status, 200);
+        assert.equal((await status()).subscribed, false);
+        await optIn();
+        await Order.updateOne({ _id: order.orderId }, { reservationExpiresAt: new Date(0) });
+        await expireReservations();
+        const mail = Mailer.prototype.sendMail.mock;
+        const before = mail.callCount();
+        await deliverRestockAlerts();
+        assert.equal(mail.callCount(), before);
+        const staff = await staffHeaders('employee');
+        const update = () => fetch(path, { method: 'PUT', headers: staff, body: JSON.stringify({ stock: 4 }) });
+        assert.equal((await update()).status, 200);
+        assert.equal((await update()).status, 200);
+        await Promise.all([deliverRestockAlerts(), deliverRestockAlerts()]);
+        await deliverRestockAlerts();
+        assert.equal(mail.callCount(), before + 1);
+        assert.equal(mail.calls.at(-1).arguments[0].to, user.email);
+        assert.equal((await status()).subscribed, false);
+    });
+
+    it('restores the opt-in if stock sells out before email delivery', async () => {
+        const item = await product(0);
+        const url = base + '/products/' + item.id;
+        const headers = { authorization: 'Bearer ' + token };
+        const staff = await staffHeaders('employee');
+        const restock = () => fetch(url, { method: 'PUT', headers: staff, body: JSON.stringify({ stock: 1 }) });
+        await fetch(url + '/restock-alert', { method: 'PUT', headers });
+        assert.equal((await restock()).status, 200);
+        await checkout(item);
+        const mail = Mailer.prototype.sendMail.mock;
+        const before = mail.callCount();
+        await deliverRestockAlerts();
+        assert.equal(mail.callCount(), before);
+        assert.equal((await (await fetch(url + '/restock-alert', { headers })).json()).subscribed, true);
+        assert.equal((await restock()).status, 200);
+        await fetch(url + '/restock-alert', { method: 'DELETE', headers });
+        await deliverRestockAlerts();
+        assert.equal(mail.callCount(), before);
+    });
 
     it('requires an issued, unexpired OTP and consumes it once', async () => {
         const email = 'staff@example.test';

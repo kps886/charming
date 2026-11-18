@@ -1,41 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import useInventoryPage from './useInventoryPage';
+import InventoryPages from './InventoryPages';
+import React, { useState } from 'react';
 import api from './../api';
 import { useAuth } from '../auth/AuthContext';
 import toast from 'react-hot-toast';
 
 const EmployeeDashboard = () => {
     const { user } = useAuth();
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const { products, loading, refresh, summary, ...pagination } = useInventoryPage();
     const [editingId, setEditingId] = useState(null);
     const [stockEdit, setStockEdit] = useState('');
-
-    const fetchProducts = async () => {
-        setLoading(true);
-        try {
-            const { data } = await api.get('/api/products');
-            setProducts(data);
-        } catch {
-            toast.error('Failed to fetch products');
-        }
-        setLoading(false);
-    };
-
-    useEffect(() => { fetchProducts(); }, []);
 
     const handleUpdateStock = async (productId) => {
         try {
             await api.put(`/api/products/${productId}`, { stock: parseInt(stockEdit) });
             toast.success('Stock updated successfully');
             setEditingId(null);
-            fetchProducts();
+            refresh();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to update stock');
         }
     };
-
-    const lowStock = products.filter(p => p.stock <= 5);
-    const outOfStock = products.filter(p => p.stock === 0);
 
     return (
         <div className="container mx-auto py-8 px-4">
@@ -51,31 +36,17 @@ const EmployeeDashboard = () => {
                 </span>
             </div>
 
-            {/* Alerts */}
-            {outOfStock.length > 0 && (
-                <div className="mb-4 p-4 bg-red-500/10 border border-red-500/40 rounded">
-                    <p className="text-red-400 font-bold text-sm">⚠ {outOfStock.length} product(s) are out of stock!</p>
-                    <p className="text-red-400/70 text-xs mt-1">{outOfStock.map(p => p.name).join(', ')}</p>
-                </div>
-            )}
-            {lowStock.filter(p => p.stock > 0).length > 0 && (
-                <div className="mb-4 p-4 bg-orange-500/10 border border-orange-500/40 rounded">
-                    <p className="text-orange-400 font-bold text-sm">⚠ {lowStock.filter(p => p.stock > 0).length} product(s) have low stock (≤5)</p>
-                </div>
-            )}
-
-            {/* Stats */}
             <div className="grid grid-cols-3 gap-4 mb-8">
                 <div className="bg-secondary-bg border border-border-color p-4 text-center">
-                    <p className="text-2xl font-bold text-accent-gold">{products.length}</p>
+                    <p className="text-2xl font-bold text-accent-gold">{summary.products}</p>
                     <p className="text-xs text-text-secondary mt-1 uppercase tracking-wider">Total Products</p>
                 </div>
                 <div className="bg-secondary-bg border border-border-color p-4 text-center">
-                    <p className="text-2xl font-bold text-orange-400">{lowStock.filter(p => p.stock > 0).length}</p>
+                    <p className="text-2xl font-bold text-orange-400">{summary.lowStock}</p>
                     <p className="text-xs text-text-secondary mt-1 uppercase tracking-wider">Low Stock</p>
                 </div>
                 <div className="bg-secondary-bg border border-border-color p-4 text-center">
-                    <p className="text-2xl font-bold text-red-400">{outOfStock.length}</p>
+                    <p className="text-2xl font-bold text-red-400">{summary.outOfStock}</p>
                     <p className="text-xs text-text-secondary mt-1 uppercase tracking-wider">Out of Stock</p>
                 </div>
             </div>
@@ -155,6 +126,7 @@ const EmployeeDashboard = () => {
                             ))}
                         </tbody>
                     </table>
+                    <InventoryPages {...pagination} />
                     {products.length === 0 && (
                         <p className="text-center py-12 text-text-secondary">No products in inventory.</p>
                     )}

@@ -54,6 +54,9 @@ const orderSchema = new mongoose.Schema({
     razorpayOrderId:   { type: String, default: null },
     razorpayPaymentId: { type: String, default: null },
     razorpaySignature: { type: String, default: null },
+    refundReference: String,
+    refundedAt: Date,
+    refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     paidAt:            { type: Date, default: null },
 
     orderStatus: {

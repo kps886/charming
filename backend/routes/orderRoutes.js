@@ -6,7 +6,7 @@ import Razorpay from 'razorpay';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import PromoCode from '../models/PromoCode.js';
-import { protect, employeeAndAbove } from '../middleware/authMiddleware.js';
+import { protect, employeeAndAbove, shopkeeperAndAbove } from '../middleware/authMiddleware.js';
 import User from '../models/User.js';
 import { sendStatusUpdate } from '../utils/emailService.js';
 const router = express.Router();
@@ -166,6 +166,15 @@ router.get('/my', protect, async (req, res) => {
 // ─────────────────────────────────────────────
 // GET /api/orders/:id  →  single order (owner or staff)
 // ─────────────────────────────────────────────
+router.get('/staff-summary', protect, shopkeeperAndAbove, async (req, res) => {
+    const [products, orders, pending, outOfStock, reviews] = await Promise.all([
+        Product.countDocuments(), Order.countDocuments(), Order.countDocuments({ orderStatus: 'pending' }),
+        Product.countDocuments({ stock: 0 }),
+        Product.aggregate([{ $unwind: '$reviews' }, { $match: { 'reviews.isApproved': { $ne: true } } }, { $count: 'count' }]),
+    ]);
+    res.json({ products, orders, pending, outOfStock, pendingReviews: reviews[0]?.count || 0 });
+});
+
 router.get('/:id', protect, async (req, res) => {
     try {
         const order = await Order.findById(req.params.id).populate('items.product', 'name images');
@@ -191,9 +200,12 @@ router.get('/', protect, employeeAndAbove, async (req, res) => {
         const skip = (page - 1) * limit;
         
         // Allow backend filtering by status so pagination math stays accurate
-        const filter = req.query.status && req.query.status !== 'all' 
-            ? { orderStatus: req.query.status } 
-            : {};
+        const filter = {};
+        if (req.query.status === 'needs-refund') {
+            Object.assign(filter, { orderStatus: 'cancelled', paymentStatus: 'paid' });
+        } else if (req.query.status && req.query.status !== 'all') {
+            filter.orderStatus = req.query.status;
+        }
 
         const [orders, total] = await Promise.all([
             Order.find(filter)
@@ -214,6 +226,20 @@ router.get('/', protect, employeeAndAbove, async (req, res) => {
 // ─────────────────────────────────────────────
 // PUT /api/orders/:id/status  →  update order status
 // ─────────────────────────────────────────────
+router.put('/:id/refund', protect, shopkeeperAndAbove, async (req, res) => {
+    const reference = req.body?.reference;
+    if (typeof reference !== 'string' || !reference.trim() || reference.trim().length > 100) {
+        return res.status(400).json({ message: 'Enter the completed refund reference (up to 100 characters)' });
+    }
+    const order = await Order.findOneAndUpdate(
+        { _id: req.params.id, orderStatus: 'cancelled', paymentStatus: 'paid' },
+        { $set: { paymentStatus: 'refunded', refundReference: reference.trim(), refundedAt: new Date(), refundedBy: req.user._id } },
+        { returnDocument: 'after' }
+    );
+    if (!order) return res.status(409).json({ message: 'This order has no outstanding refund' });
+    res.json(order);
+});
+
 router.put('/:id/status', protect, employeeAndAbove, async (req, res) => {
     const { orderStatus, trackingNumber } = req.body;
     const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
