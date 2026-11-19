@@ -14,7 +14,8 @@ export const protect = async (req, res, next) => {
             if (!req.user || !req.user.isActive) {
                 return res.status(401).json({ message: 'Account inactive or not found' });
             }
-            next();
+            if ((decoded.sv ?? 0) !== req.user.sessionVersion) return res.status(401).json({ message: 'Please sign in again' });
+            return next();
         } catch (error) {
             return res.status(401).json({ message: 'Not authorized, token failed' });
         }

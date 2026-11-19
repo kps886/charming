@@ -8,6 +8,7 @@ const orderItemSchema = new mongoose.Schema({
     name:     { type: String, required: true },
     image:    { type: String },
     price:    { type: Number, required: true },
+    pricePaise: Number,
     quantity: { type: Number, required: true, min: 1 },
 }, { _id: false });
 
@@ -39,6 +40,16 @@ const orderSchema = new mongoose.Schema({
     promoCode:     { type: String, default: null },
     promoDiscount: { type: Number, default: 0 },
 
+    subtotalPaise: Number,
+    deliveryFeePaise: Number,
+    discountPaise: Number,
+    totalPaise: Number,
+    legacyAttemptKey: { type: String, select: false },
+    checkoutFingerprint: { type: String, select: false },
+    gatewayLeaseUntil: { type: Date, select: false },
+    holdExpiredAt: Date,
+    captureReview: String,
+    authorizedPaymentId: String,
     reservationExpiresAt: { type: Date, index: true },
 
     paymentMethod: {

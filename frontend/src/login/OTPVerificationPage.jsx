@@ -89,7 +89,7 @@ const OTPVerificationPage = () => {
 
     // ── Resend Action ──
     const handleResend = async () => {
-        if (timeLeft > 0 || attemptsLeft <= 0) return;
+        if (timeLeft > 0) return;
 
         setIsResending(true);
         const result = await resendOtp(email);
@@ -97,7 +97,7 @@ const OTPVerificationPage = () => {
 
         if (result.success) {
             toast.success('A new verification code has been sent!');
-            setTimeLeft(60); // Reset timer back to 60 seconds
+            setTimeLeft(result.attemptsLeft === 0 ? 600 : 60);
             setAttemptsLeft(result.attemptsLeft);
 
             // Clear inputs so they can type the new code
@@ -105,9 +105,7 @@ const OTPVerificationPage = () => {
             if (inputRefs.current[0]) inputRefs.current[0].focus();
         } else {
             toast.error(result.error);
-            if (result.error.includes('limit')) {
-                setAttemptsLeft(0); // Lock them out on the frontend if backend says limit reached
-            }
+            setTimeLeft(60);
         }
     };
 
@@ -159,9 +157,7 @@ const OTPVerificationPage = () => {
                     <div className="mt-8 text-center text-sm text-text-secondary">
                         <p className="mb-2">Didn't receive the code?</p>
 
-                        {attemptsLeft <= 0 ? (
-                            <span className="text-red-400 font-bold">Too many attempts. Please try again later.</span>
-                        ) : timeLeft > 0 ? (
+                        {timeLeft > 0 ? (
                             <span>Resend available in <span className="text-accent-gold font-bold">{timeLeft}s</span></span>
                         ) : (
                             <button

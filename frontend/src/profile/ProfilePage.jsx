@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../auth/AuthContext';
 import api from '../api';
 import toast from 'react-hot-toast';
 
@@ -46,6 +47,9 @@ const inputCls = (err) =>
 // ─────────────────────────────────────────────────────────────
 const ProfilePage = () => {
 
+    const { updateSession } = useAuth();
+    const [pendingEmail, setPendingEmail] = useState('');
+    const [code, setCode] = useState('');
     // ── Profile form ──────────────────────────────────────────
     const [profile, setProfile] = useState({ name: '', email: '' });
     const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
@@ -66,6 +70,7 @@ const ProfilePage = () => {
             try {
                 const { data } = await api.get('/api/users/profile');
                 setProfile({ name: data.name, email: data.email });
+                setPendingEmail(data.pendingEmail || '');
                 setAddresses(data.addresses || []);
             } catch { /* silent */ }
             setAddrLoading(false);
@@ -119,19 +124,32 @@ const ProfilePage = () => {
         setProfileLoading(true);
         try {
             const payload = { name: profile.name, email: profile.email };
+            if (passwords.current) payload.currentPassword = passwords.current;
             if (passwords.next) payload.password = passwords.next;
             const { data } = await api.put('/api/users/profile', payload);
             
-            toast.success('Profile updated successfully');
+            toast.success(data.message);
+            setPendingEmail(data.pendingEmail || '');
+            setProfile({ name: data.name, email: data.email });
             setPasswords({ current: '', next: '', confirm: '' });
             
-            // refresh token in auth context
-            const stored = JSON.parse(localStorage.getItem('charmingUser') || '{}');
-            localStorage.setItem('charmingUser', JSON.stringify({ ...stored, ...data }));
+            updateSession(data);
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to update profile');
         }
         setProfileLoading(false);
+    };
+
+    const confirmEmail = async (event) => {
+        event.preventDefault();
+        try {
+            const { data } = await api.post('/api/users/profile/confirm-email', { code: code.trim() });
+            updateSession(data);
+            setProfile({ name: data.name, email: data.email });
+            setPendingEmail('');
+            setCode('');
+            toast.success('Your sign-in email has been updated');
+        } catch (err) { toast.error(err.response?.data?.message || 'Could not confirm email'); }
     };
 
     // ── Address helpers ───────────────────────────────────────
@@ -219,6 +237,11 @@ const ProfilePage = () => {
                         </Field>
                     </div>
 
+                    <Field label="Current password (required for email and password changes)">
+                        <input type="password" autoComplete="current-password" value={passwords.current}
+                            onChange={e => setPasswords({ ...passwords, current: e.target.value })} className={inputCls(false)} />
+                    </Field>
+
                     <div className="border-t border-border-color pt-4">
                         <p className="text-xs font-bold uppercase tracking-wider text-text-secondary mb-3">
                             Change Password (leave blank to keep current)
@@ -259,6 +282,13 @@ const ProfilePage = () => {
                         {profileLoading ? 'Saving...' : 'Save Changes'}
                     </button>
                 </form>
+                {pendingEmail && <form onSubmit={confirmEmail} className="mt-5 space-y-2">
+                    <Field label={'Confirmation code for ' + pendingEmail}>
+                        <input value={code} onChange={e => setCode(e.target.value)} required autoComplete="one-time-code" className={inputCls(false)} />
+                    </Field>
+                    <button className="text-accent-gold">Confirm new email</button>
+                    <p className="text-sm">To request a fresh code, enter the new email and your current password above and save changes.</p>
+                </form>}
             </Section>
 
             {/* ── Saved Addresses ── */}

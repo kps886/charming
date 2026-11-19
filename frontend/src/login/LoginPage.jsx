@@ -72,7 +72,7 @@ const LoginPage = () => {
         }
         else {
             if (result.requiresVerification) {
-                toast.error('Please verify your email before logging in.');
+                toast.error(result.error || 'Please verify your email before logging in.');
                 navigate('/verify-email', { state: { email: result.email } });
             } else {
                 toast.error(result.error || result.message || 'Authentication failed');

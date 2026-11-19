@@ -3,21 +3,47 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { protect, adminOnly, shopkeeperAndAbove } from '../middleware/authMiddleware.js';
 import crypto from 'crypto';
-import { sendPasswordResetEmail, sendEmail } from '../utils/emailService.js';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import { queueAccountMail, deliverAccountMail } from '../utils/accountMail.js';
+import { passwordResetMessage } from '../utils/emailService.js';
 
+import { schema, validate, validateIds } from '../middleware/validation.js';
 const router = express.Router();
+validateIds(router, ["id","addressId","productId"]);
 
 // Generate JWT
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, {
+const generateToken = (user) => {
+    return jwt.sign({ id: user.id, sv: user.sessionVersion ?? 0 }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRE || '30d',
     });
 };
 
+function verificationMessage(email, code) {
+    return { to: email, subject: 'Verify your Charming account', text: 'Your verification code is ' + code + '. It expires in ten minutes.' };
+}
+
+async function issueOtp(user, session) {
+    user.otp = crypto.randomInt(100000, 1000000).toString();
+    user.otpExpire = new Date(Date.now() + 600000);
+    await user.save({ session });
+    return queueAccountMail(user.id, 'verification', verificationMessage(user.email, user.otp), user.otpExpire, session);
+}
+
+async function verificationResponse(res, user, job, status) {
+    const sent = await deliverAccountMail(job);
+    if (!sent && user.otpResendCount > 0) {
+        await User.updateOne({ _id: user.id, otp: user.otp, otpResendCount: { $gt: 0 } }, { $inc: { otpResendCount: -1 } });
+    }
+    return res.status(sent ? status : 503).json({ success: sent, requiresVerification: true, email: user.email,
+        attemptsLeft: Math.max(0, 3 - user.otpResendCount),
+        message: sent ? 'Check your email for your verification code.' : 'Email delivery is delayed. You can request another code on the verification page.' });
+}
+
 // @desc    Register a new user (public - always registers as 'user' role)
 // @route   POST /api/users/register
 // @access  Public
-router.post('/register', async (req, res) => {
+router.post('/register', validate(schema.register), async (req, res) => {
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
@@ -30,36 +56,11 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'User with this email already exists' });
         }
 
-        const user = await User.create({ name, email, password, role: 'user' });
-
-        const otp = crypto.randomInt(100000, 1000000).toString();
-        user.otp = otp;
-        user.otpExpire = Date.now() + 10 * 60 * 1000; // 10 mins
-        await user.save();
-
-        try {
-            await sendEmail({
-                to: user.email,
-                subject: 'Verify your Charming Account',
-                html: `
-                    <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
-                        <h2>Welcome to Charming!</h2>
-                        <p>Your verification code is:</p>
-                        <h1 style="color: #d4af37; letter-spacing: 5px;">${otp}</h1>
-                        <p>This code will expire in 10 minutes.</p>
-                    </div>
-                `,
-            });
-        } catch (error) {
-            console.error("Email failed to send:", error);
-        }
-
-        res.status(201).json({
-            success: true,
-            requiresVerification: true,
-            email: user.email,
-            message: 'Registration successful. Please verify your email.'
+        const { user, job } = await mongoose.connection.transaction(async session => {
+            const user = new User({ name, email, password, role: 'user' });
+            return { user, job: await issueOtp(user, session) };
         });
+        return await verificationResponse(res, user, job, 201);
     } catch (error) {
         res.status(500).json({ message: 'Server error during registration' });
     }
@@ -68,7 +69,7 @@ router.post('/register', async (req, res) => {
 // @desc    Login user
 // @route   POST /api/users/login
 // @access  Public
-router.post('/login', async (req, res) => {
+router.post('/login', validate(schema.login), async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -99,7 +100,7 @@ router.post('/login', async (req, res) => {
             name: user.name,
             email: user.email,
             role: user.role,
-            token: generateToken(user._id),
+            token: generateToken(user),
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error during login' });
@@ -109,46 +110,20 @@ router.post('/login', async (req, res) => {
 // @desc    Resend OTP
 // @route   POST /api/users/resend-otp
 // @access  Public
-router.post('/resend-otp', async (req, res) => {
+router.post('/resend-otp', validate(schema.email), async (req, res) => {
     try {
         const { email } = req.body;
-        const user = await User.findOne({ email });
-
-        if (!user) return res.status(404).json({ message: 'User not found' });
-        if (user.isVerified) return res.status(400).json({ message: 'Account is already verified' });
-
-        // Check our strict 3-time limit
-        if (user.otpResendCount >= 3) {
-            return res.status(429).json({ message: 'Maximum OTP resend limit reached. Please contact support.' });
-        }
-
-        // Generate new 6-digit OTP
-        const otp = crypto.randomInt(100000, 1000000).toString();
-        user.otp = otp;
-        user.otpExpire = Date.now() + 10 * 60 * 1000; // 10 mins
-        user.otpResendCount += 1; // Increment the counter!
-        await user.save();
-
-        // Send Email
-        try {
-            await sendEmail({
-                to: user.email,
-                subject: 'Your New Verification Code',
-                html: `
-                    <div style="font-family: Arial, sans-serif; text-align: center; padding: 20px;">
-                        <h2>Charming</h2>
-                        <p>Here is your new verification code:</p>
-                        <h1 style="color: #d4af37; letter-spacing: 5px;">${otp}</h1>
-                        <p>This code will expire in 10 minutes.</p>
-                    </div>
-                `,
-            });
-        } catch (error) {
-            console.error("Email failed to send:", error);
-        }
-
-        // Return the number of attempts left to the frontend
-        res.json({ message: 'OTP resent successfully', attemptsLeft: 3 - user.otpResendCount });
+        const outcome = await mongoose.connection.transaction(async session => {
+            const user = await User.findOne({ email }).session(session);
+            if (!user) return { error: 'User not found', status: 404 };
+            if (user.isVerified) return { error: 'Account is already verified', status: 400 };
+            if (!user.otpExpire || user.otpExpire <= new Date()) user.otpResendCount = 0;
+            if (user.otpResendCount >= 3) return { error: 'Please wait until the current code expires before requesting another.', status: 429 };
+            user.otpResendCount += 1;
+            return { user, job: await issueOtp(user, session) };
+        });
+        if (outcome.error) return res.status(outcome.status).json({ message: outcome.error });
+        return await verificationResponse(res, outcome.user, outcome.job, 200);
     } catch (error) {
         res.status(500).json({ message: 'Server error during OTP resend' });
     }
@@ -157,7 +132,7 @@ router.post('/resend-otp', async (req, res) => {
 // @desc    Verify OTP
 // @route   POST /api/users/verify-otp
 // @access  Public
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', validate(schema.otp), async (req, res) => {
     try {
         const { email, otp } = req.body;
 
@@ -178,7 +153,7 @@ router.post('/verify-otp', async (req, res) => {
             name: user.name,
             email: user.email,
             role: user.role,
-            token: generateToken(user._id),
+            token: generateToken(user),
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error during verification' });
@@ -200,27 +175,74 @@ router.get('/profile', protect, async (req, res) => {
 // @desc    Update current user profile
 // @route   PUT /api/users/profile
 // @access  Private (all authenticated users)
-router.put('/profile', protect, async (req, res) => {
-    try {
-        const user = await User.findById(req.user._id);
-        if (!user) return res.status(404).json({ message: 'User not found' });
+function accountResponse(user) {
+    return { _id: user._id, name: user.name, email: user.email, role: user.role,
+        pendingEmail: user.pendingEmail || null, token: generateToken(user) };
+}
 
-        user.name = req.body.name || user.name;
-        user.email = req.body.email || user.email;
-        if (req.body.password) {
-            user.password = req.body.password; // pre-save hook will hash it
+const digest = value => crypto.createHash('sha256').update(value).digest('hex');
+
+router.put('/profile', protect, validate(schema.profile), async (req, res) => {
+    const outcome = await mongoose.connection.transaction(async session => {
+        const user = await User.findById(req.user._id).select('+resetPasswordToken +emailChangeHash').session(session);
+        if (!user || user.sessionVersion !== req.user.sessionVersion) return { status: 401, message: 'Please sign in again' };
+        const email = req.body.email?.trim().toLowerCase();
+        const changingEmail = email && email !== user.email;
+        if (changingEmail || req.body.password) {
+            if (!req.body.currentPassword || !(await user.matchPassword(req.body.currentPassword))) {
+                return { status: 403, message: 'Enter your current password to change your email or password' };
+            }
         }
+        if (changingEmail && await User.exists({ email }).session(session)) return { status: 409, message: 'That email is unavailable' };
+        if (req.body.name) user.name = req.body.name;
+        if (req.body.password) {
+            user.password = req.body.password;
+            user.sessionVersion += 1;
+            user.set({ resetPasswordToken: undefined, resetPasswordExpire: undefined,
+                pendingEmail: undefined, emailChangeHash: undefined, emailChangeExpires: undefined });
+        }
+        let job;
+        if (changingEmail) {
+            const code = crypto.randomBytes(8).toString('hex');
+            user.pendingEmail = email;
+            user.emailChangeHash = digest(code);
+            user.emailChangeExpires = new Date(Date.now() + 600000);
+            job = await queueAccountMail(user.id, 'email-change', { to: email, subject: 'Confirm your new Charming email',
+                text: 'Paste this code in Account Details within ten minutes: ' + code }, user.emailChangeExpires, session);
+        }
+        await user.save({ session });
+        return { user, job };
+    });
+    if (outcome.status) return res.status(outcome.status).json({ message: outcome.message });
+    const sent = outcome.job ? await deliverAccountMail(outcome.job) : true;
+    res.json({ ...accountResponse(outcome.user), message: outcome.job ? (sent ? 'Check your new email for the confirmation code.' :
+        'Confirmation email delayed. Save your new email again to request a fresh code.') : 'Profile updated' });
+});
 
-        const updatedUser = await user.save();
-        res.json({
-            _id: updatedUser._id,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            role: updatedUser.role,
-            token: generateToken(updatedUser._id),
+router.post('/profile/confirm-email', protect, validate(schema.confirmEmail), async (req, res) => {
+    const code = req.body.code;
+    if (typeof code !== 'string' || !/^[a-f0-9]{16}$/.test(code)) return res.status(400).json({ message: 'Invalid confirmation code' });
+    try {
+        const updated = await mongoose.connection.transaction(async session => {
+            const user = await User.findOne({ _id: req.user._id, emailChangeHash: digest(code),
+                emailChangeExpires: { $gt: new Date() } }).select('+resetPasswordToken +emailChangeHash').session(session);
+            if (!user || user.sessionVersion !== req.user.sessionVersion) return null;
+            const previous = user.email;
+            user.email = user.pendingEmail;
+            user.sessionVersion += 1;
+            user.set({ pendingEmail: undefined, emailChangeHash: undefined, emailChangeExpires: undefined,
+                resetPasswordToken: undefined, resetPasswordExpire: undefined });
+            await user.save({ session });
+            await queueAccountMail(user.id, 'security', { to: previous, subject: 'Your Charming account email changed',
+                text: 'Your sign-in email was changed. If you did not request this, contact Charming support.' },
+                new Date(Date.now() + 86400000), session);
+            return user;
         });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error updating profile' });
+        if (!updated) return res.status(400).json({ message: 'Code expired or incorrect. Request a fresh code.' });
+        res.json(accountResponse(updated));
+    } catch (err) {
+        if (err.code === 11000) return res.status(409).json({ message: 'That email is unavailable' });
+        throw err;
     }
 });
 
@@ -246,7 +268,7 @@ router.get('/wishlist', protect, async (req, res) => {
 // @desc    Get all users
 // @route   GET /api/users
 // @access  Private/Admin
-router.get('/', protect, adminOnly, async (req, res) => {
+router.get('/', protect, adminOnly, validate(schema.pagination, 'query'), async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
@@ -266,7 +288,7 @@ router.get('/', protect, adminOnly, async (req, res) => {
 // @desc    Create a user with a specific role (admin, shopkeeper, employee)
 // @route   POST /api/users/create
 // @access  Private/Admin
-router.post('/create', protect, adminOnly, async (req, res) => {
+router.post('/create', protect, adminOnly, validate(schema.staff), async (req, res) => {
     const { name, email, password, role } = req.body;
 
     if (!name || !email || !password || !role) {
@@ -291,7 +313,7 @@ router.post('/create', protect, adminOnly, async (req, res) => {
             name: user.name,
             email: user.email,
             role: user.role,
-            token: generateToken(user._id),
+            token: generateToken(user),
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error creating user' });
@@ -317,13 +339,12 @@ router.get('/:id', protect, adminOnly, async (req, res) => {
 // @desc    Update any user's role/status (admin only)
 // @route   PUT /api/users/:id
 // @access  Private/Admin
-router.put('/:id', protect, adminOnly, async (req, res) => {
+router.put('/:id', protect, adminOnly, validate(schema.staffEdit), async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         user.name = req.body.name || user.name;
-        user.email = req.body.email || user.email;
         user.role = req.body.role || user.role;
         if (typeof req.body.isActive === 'boolean') user.isActive = req.body.isActive;
 
@@ -365,7 +386,7 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
 // @desc    Add a new address
 // @route   POST /api/users/addresses
 // @access  Private
-router.post('/addresses', protect, async (req, res) => {
+router.post('/addresses', protect, validate(schema.address), async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -461,34 +482,20 @@ router.post('/wishlist/:productId', protect, async (req, res) => {
 // @desc    Forgot Password
 // @route   POST /api/users/forgotpassword
 // @access  Public
-router.post('/forgotpassword', async (req, res) => {
+router.post('/forgotpassword', validate(schema.email), async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Please provide an email address' });
 
     try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            // Return 200 even if user doesn't exist for security (prevents email enumeration)
-            return res.status(200).json({ message: 'If an account exists, a reset email has been sent.' });
-        }
-
-        // Get reset token (generates and hashes it, but doesn't save to DB yet)
-        const resetToken = user.getResetPasswordToken();
-        await user.save({ validateBeforeSave: false });
-
-        // Create reset URL (pointing to your React frontend)
-        const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-
-        try {
-            await sendPasswordResetEmail(user.email, user.name, resetUrl);
-            res.status(200).json({ message: 'Email sent' });
-        } catch (err) {
-            // If email fails, clear the token from DB so they can try again
-            user.resetPasswordToken = undefined;
-            user.resetPasswordExpire = undefined;
-            await user.save({ validateBeforeSave: false });
-            return res.status(500).json({ message: 'Email could not be sent' });
-        }
+        await mongoose.connection.transaction(async session => {
+            const user = await User.findOne({ email }).session(session);
+            if (!user) return;
+            const resetToken = user.getResetPasswordToken();
+            await user.save({ session });
+            const url = process.env.FRONTEND_URL + '/reset-password/' + resetToken;
+            await queueAccountMail(user.id, 'recovery', passwordResetMessage(user.email, url), user.resetPasswordExpire, session);
+        });
+        res.json({ message: 'If your account is eligible, check your inbox and spam folder. If the link does not arrive within ten minutes, request another.' });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -497,35 +504,22 @@ router.post('/forgotpassword', async (req, res) => {
 // @desc    Reset Password
 // @route   PUT /api/users/resetpassword/:token
 // @access  Public
-router.put('/resetpassword/:token', async (req, res) => {
+router.put('/resetpassword/:token', validate(schema.reset), async (req, res) => {
     try {
+        if (!/^[a-f0-9]{40}$/.test(req.params.token)) return res.status(400).json({ message: 'Invalid reset token' });
         // Hash the token from the URL to compare it with the hashed token in DB
         const resetPasswordToken = crypto
             .createHash('sha256')
             .update(req.params.token)
             .digest('hex');
 
-        // Find user by token AND ensure token hasn't expired
-        const user = await User.findOne({
-            resetPasswordToken,
-            resetPasswordExpire: { $gt: Date.now() },
-        });
-
-        if (!user) {
-            return res.status(400).json({ message: 'Invalid or expired password reset token' });
-        }
-
-        if (!req.body.password || req.body.password.length < 6) {
+        if (typeof req.body.password !== 'string' || req.body.password.length < 6) {
             return res.status(400).json({ message: 'Password must be at least 6 characters' });
         }
-
-        // Set new password (the pre-save hook in User.js will hash it)
-        user.password = req.body.password;
-        
-        // Clear reset token fields
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpire = undefined;
-        await user.save();
+        const result = await User.updateOne({ resetPasswordToken, resetPasswordExpire: { $gt: new Date() } },
+            { $set: { password: await bcrypt.hash(req.body.password, 10) }, $inc: { sessionVersion: 1 },
+                $unset: { resetPasswordToken: 1, resetPasswordExpire: 1, pendingEmail: 1, emailChangeHash: 1, emailChangeExpires: 1 } });
+        if (!result.modifiedCount) return res.status(400).json({ message: 'Invalid or expired password reset token' });
 
         res.status(200).json({ message: 'Password reset successful. Please log in.' });
     } catch (error) {

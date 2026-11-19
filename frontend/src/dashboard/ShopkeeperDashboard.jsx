@@ -1,3 +1,4 @@
+import ReconciliationQueue from './ReconciliationQueue';
 import RefundRecord from './RefundRecord';
 import useInventoryPage from './useInventoryPage';
 import InventoryPages from './InventoryPages';
@@ -185,15 +186,16 @@ const OrdersPanel = ({ onChange }) => {
 
     return (
         <div>
+            <ReconciliationQueue />
             <div className="flex gap-2 flex-wrap mb-5">
-                {['all', ...STATUSES, 'needs-refund'].map(s => (
+                {['all', ...STATUSES, 'needs-refund', 'payment-review'].map(s => (
                     <button key={s} onClick={() => setFilter(s)}
                         className={`px-3 py-1.5 text-xs font-bold uppercase rounded border
                             transition-colors ${filter === s
                                 ? 'bg-accent-gold text-primary-bg border-accent-gold'
                                 : 'border-border-color text-text-secondary hover:border-text-secondary'
                             }`}>
-                        {s === 'needs-refund' ? 'Needs refund' : s}
+                        {s === 'needs-refund' ? 'Needs refund' : s === 'payment-review' ? 'Payment review' : s}
                     </button>
                 ))}
             </div>
@@ -242,6 +244,7 @@ const OrdersPanel = ({ onChange }) => {
 
                             {expanded === order._id && (
                                 <div className="border-t border-border-color p-4 space-y-4">
+                                    {order.captureReview && <p>{order.captureReview} · Payment {order.razorpayPaymentId}</p>}
                                     <RefundRecord order={order} onRecorded={fetchOrders} />
                                     <div className="space-y-2">
                                         {order.items.map((item, i) => (

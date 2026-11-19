@@ -7,11 +7,14 @@ import mongoSanitize from 'express-mongo-sanitize';
 import rateLimit from 'express-rate-limit';
 import productRoutes from './routes/productRoutes.js';
 import userRoutes from './routes/userRoutes.js';
-import orderRoutes from './routes/orderRoutes.js';
+import orderRoutes, { razorpay } from './routes/orderRoutes.js';
 import promoRoutes from './routes/promoRoutes.js';
 import analyticRoutes from './routes/analyticsRoutes.js';
 import { deliverRestockAlerts } from './utils/restockAlerts.js';
 import { expireReservations } from './utils/orderInventory.js';
+import { retryAccountMail } from './utils/accountMail.js';
+import { cleanImages } from './middleware/uploadMiddleware.js';
+import { runReconciliation } from './utils/reconciliation.js';
 import cartRoutes from './routes/cartRoutes.js';
 
 dotenv.config();
@@ -35,11 +38,6 @@ app.use(cors({
     },
     credentials: true,
 }));
-app.use((req, res, next) => {
-    if (req.body) req.body = mongoSanitize.sanitize(req.body);
-    if (req.params) req.params = mongoSanitize.sanitize(req.params);
-    next();
-});
 app.set('trust proxy', 1);
 const apiLimiter = rateLimit({
     windowMs: 10 * 60 * 1000, 
@@ -55,9 +53,14 @@ const authLimiter = rateLimit({
 });
 app.use(express.json({
     verify: (req, res, buf) => {
-        req.rawBody = buf;
+        if (req.path.toLowerCase().replace(/\/$/, '') === '/api/orders/webhook') req.rawBody = buf;
     }
 }));
+
+app.use((req, res, next) => {
+    if (!req.rawBody && req.body && mongoSanitize.has(req.body)) return res.status(400).json({ message: 'Unsupported request field' });
+    next();
+});
 
 // Connect to MongoDB
 const connectDB = async () => {
@@ -80,18 +83,24 @@ async function sweepReservations() {
     }
 }
 
-async function sendRestockAlerts() {
+async function processQueues() {
     try {
-        await deliverRestockAlerts();
+        await Promise.all([deliverRestockAlerts(), cleanImages(), retryAccountMail()]);
     } catch (err) {
-        console.error('Restock email queue failed:', err.message);
+        console.error('Background queue failed:', err.message);
     } finally {
-        setTimeout(sendRestockAlerts, 60000).unref();
+        setTimeout(processQueues, 60000).unref();
     }
 }
 connectDB().then(() => {
+    async function reconcile() {
+        try { await runReconciliation(razorpay); }
+        catch { console.error('Daily payment reconciliation failed'); }
+        finally { setTimeout(reconcile, 5 * 60000).unref(); }
+    }
+    reconcile();
     sweepReservations();
-    sendRestockAlerts();
+    processQueues();
 });
 
 // Health check
@@ -100,7 +109,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
-const authPaths = ['login', 'register', 'resend-otp', 'verify-otp', 'forgotpassword', 'resetpassword'];
+const authPaths = ['login', 'register', 'resend-otp', 'verify-otp', 'forgotpassword', 'resetpassword', 'profile/confirm-email'];
 app.use(authPaths.map(path => '/api/users/' + path), authLimiter);
 app.use('/api/users', apiLimiter, userRoutes);
 app.use('/api/products', apiLimiter, productRoutes);
@@ -117,7 +126,7 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-    const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+    const statusCode = err.status || (res.statusCode === 200 ? 500 : res.statusCode);
     res.status(statusCode).json({
         message: err.message || 'Internal Server Error',
         stack: process.env.NODE_ENV === 'production' ? null : err.stack,

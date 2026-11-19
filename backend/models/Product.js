@@ -1,3 +1,4 @@
+import { paise } from '../utils/money.js';
 import mongoose from 'mongoose';
 
 const variationSchema = new mongoose.Schema({
@@ -20,11 +21,13 @@ const productSchema = new mongoose.Schema({
         required: true,
         min: 0
     },
+    pricePaise: Number,
     category: {
         type: String,
         required: true,
         enum: ['Electronics', 'Fragrances', 'Bags & Purses', 'Toys & Games', 'Home & Kitchen']
     },
+    imageAssets: [{ _id: false, publicId: String, url: String }],
     images: [{
         type: String,
         required: true
@@ -53,6 +56,16 @@ const productSchema = new mongoose.Schema({
     reviewCount: { type: Number, default: 0 },
 }, {
     timestamps: true
+});
+
+productSchema.pre('validate', function () {
+    if (this.price != null && (this.isModified('price') || this.pricePaise == null)) {
+        const amount = paise(this.price);
+        if (this.isModified('price') && amount / 100 !== this.price) {
+            this.invalidate('price', 'Use at most two decimal places');
+        }
+        this.pricePaise = amount;
+    }
 });
 
 const Product = mongoose.model('Product', productSchema);

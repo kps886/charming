@@ -1,3 +1,4 @@
+import { expectedPaise, paise } from './money.js';
 import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
@@ -27,6 +28,10 @@ export function combineItems(items) {
 
 export async function reserveOrder(fields) {
     return mongoose.connection.transaction(async session => {
+        if (fields._id) {
+            const existing = await Order.findById(fields._id).select('+checkoutFingerprint').session(session);
+            if (existing) return existing;
+        }
         for (const item of fields.items) {
             const result = await Product.updateOne(
                 { _id: item.product, stock: { $gte: item.quantity } },
@@ -55,6 +60,7 @@ export async function expireReservations() {
         await mongoose.connection.transaction(async session => {
             const order = await Order.findOne({ ...due, _id: entry._id }).session(session);
             if (!order) return;
+            order.holdExpiredAt = order.reservationExpiresAt;
             await releaseReservation(order, session);
             order.orderStatus = 'cancelled';
             order.cancelReason = 'Checkout expired';
@@ -80,25 +86,68 @@ async function claimLegacyStock(order, session) {
     return true;
 }
 
-export async function completePayment(filter, paymentId, signature) {
-    const { order, fulfilled } = await mongoose.connection.transaction(async session => {
+export async function completePayment(filter, payment, signature, captureTime) {
+    const { order, fulfilled, mismatch } = await mongoose.connection.transaction(async session => {
         const order = await Order.findOne(filter).session(session);
         if (!order) throw orderError(404, 'Order not found');
+        const paymentId = payment.id;
+        if (!paymentId || payment.order_id !== order.razorpayOrderId) throw orderError(409, 'Payment order mismatch');
+        if (payment.currency !== 'INR' || !Number.isSafeInteger(payment.amount) || payment.amount !== expectedPaise(order)) {
+            if (order.paymentStatus === 'pending' && payment.status === 'captured' && payment.captured === true) {
+                order.captureReview = 'Gateway capture amount or currency mismatch';
+                order.razorpayPaymentId = paymentId;
+                await order.save({ session });
+            }
+            return { order, mismatch: true };
+        }
         if (order.paymentStatus !== 'pending') {
             if (order.razorpayPaymentId !== paymentId) throw orderError(409, 'Conflicting payment');
             return { order, fulfilled: false };
         }
-        const expired = order.reservationExpiresAt && order.reservationExpiresAt <= new Date();
-        if (expired || order.orderStatus === 'cancelled') {
+        if (payment.status === 'authorized') {
+            order.authorizedPaymentId = paymentId;
+            await order.save({ session });
+            return { order, fulfilled: false };
+        }
+        if (payment.status !== 'captured' || payment.captured !== true) throw orderError(409, 'Payment has not been captured');
+
+        // Use the verified provider amount for receipts issued on an old, rounded checkout.
+        if (order.totalPaise == null) {
+            order.totalPaise = payment.amount;
+            order.total = payment.amount / 100;
+            order.subtotalPaise = paise(order.items.reduce((sum, item) => sum + item.price * item.quantity, 0));
+            order.subtotal = order.subtotalPaise / 100;
+            order.deliveryFeePaise = paise(order.deliveryFee);
+            order.discountPaise = paise(order.discount);
+            for (const item of order.items) item.pricePaise = paise(item.price);
+        }
+
+        const deadline = order.reservationExpiresAt || order.holdExpiredAt;
+        const expired = deadline && deadline <= new Date();
+        const manualCancel = order.orderStatus === 'cancelled' && !order.holdExpiredAt;
+        // A payment's created_at is its initiation time. Only the signed capture event dates capture.
+        if (expired && !captureTime && !manualCancel) {
+            order.captureReview = 'Captured payment awaiting provider capture time';
+            order.razorpayPaymentId = paymentId;
+            await order.save({ session });
+            return { order, fulfilled: false };
+        }
+        const late = expired && captureTime >= deadline;
+        order.captureReview = undefined;
+        if (late || manualCancel) {
             await releaseReservation(order, session);
             order.orderStatus = 'cancelled';
             order.cancelReason ||= 'Checkout expired';
+            order.captureReview = 'Captured payment on cancelled order: review refund';
         } else if (!order.reservationExpiresAt && !await claimLegacyStock(order, session)) {
             order.orderStatus = 'cancelled';
             order.cancelReason = 'Stock unavailable';
+            order.captureReview = 'Captured payment without available stock: review refund';
         } else {
             order.reservationExpiresAt = undefined;
             order.orderStatus = 'processing';
+            order.cancelReason = null;
+            order.cancelledAt = null;
             if (order.promoCode) {
                 await PromoCode.updateOne({ code: order.promoCode }, { $inc: { usedCount: 1 } }, { session });
             }
@@ -107,11 +156,12 @@ export async function completePayment(filter, paymentId, signature) {
         order.paymentStatus = 'paid';
         order.razorpayPaymentId = paymentId;
         if (signature) order.razorpaySignature = signature;
-        order.paidAt = new Date();
+        order.paidAt = captureTime || new Date();
         await order.save({ session });
         return { order, fulfilled: order.orderStatus === 'processing' };
     });
 
+    if (mismatch) throw orderError(409, 'Payment details do not match the order');
     if (fulfilled) {
         try {
             const buyer = await User.findById(order.user).select('name email');

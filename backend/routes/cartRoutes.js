@@ -2,6 +2,7 @@ import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
 import Cart from '../models/Cart.js';
 
+import { schema, validate } from '../middleware/validation.js';
 const router = express.Router();
 
 // @desc    Get user cart
@@ -30,7 +31,7 @@ router.get('/', protect, async (req, res) => {
 // @desc    Update entire cart
 // @route   POST /api/cart
 // @access  Private
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, validate(schema.cart), async (req, res) => {
     try {
         const { items } = req.body;
 
@@ -41,7 +42,7 @@ router.post('/', protect, async (req, res) => {
             { user: req.user._id },
             { $set: { items: items } },
             { 
-                new: true,
+                returnDocument: 'after',
                 upsert: true,
                 runValidators: true
             }

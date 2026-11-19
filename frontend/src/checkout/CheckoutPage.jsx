@@ -149,7 +149,7 @@ const Field = ({ label, name, type = 'text', required, half, children, value, on
 // Main Checkout Page
 // ─────────────────────────────────────────────────────────────
 const CheckoutPage = () => {
-    const { cartItems, clearCart, totalPrice } = useContext(CartContext);
+    const { cartItems, clearCart } = useContext(CartContext);
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -161,15 +161,17 @@ const CheckoutPage = () => {
     const [promoResult, setPromoResult] = useState(null);  // { code, discount, message }
     const [promoError, setPromoError] = useState('');
     const [promoLoading, setPromoLoading] = useState(false);
+    const openingPayment = React.useRef(false);
     const [placing, setPlacing] = useState(false);
     const [error, setError] = useState('');
     const [addressErrors, setAddressErrors] = useState({});
 
     // Computed prices
-    const subtotal = totalPrice;
+    const subtotalPaise = cartItems.reduce((sum, item) => sum + Math.round(item.price * 100) * item.qty, 0);
+    const subtotal = subtotalPaise / 100;
     const deliveryFee = subtotal >= DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
     const discount = promoResult?.discount || 0;
-    const total = Math.max(subtotal + deliveryFee - discount, 1);
+    const total = Math.max(subtotalPaise + Math.round(deliveryFee * 100) - Math.round(discount * 100), 100) / 100;
 
     // Redirect if cart is empty
     useEffect(() => {
@@ -268,6 +270,8 @@ const CheckoutPage = () => {
 
     // ── Payment ───────────────────────────────────────────────
     const handlePayment = async () => {
+        if (openingPayment.current) return;
+        openingPayment.current = true;
         setPlacing(true);
         setError('');
 
@@ -275,21 +279,39 @@ const CheckoutPage = () => {
         const loaded = await loadRazorpay();
         if (!loaded) {
             setError('Failed to load Razorpay. Check your internet connection.');
+            openingPayment.current = false;
             setPlacing(false);
             return;
         }
 
         try {
             // 2. Create order on backend — get razorpayOrderId
-            const { data } = await api.post('/api/orders/create-payment', {
-                items: cartItems.map(item => ({
-                    product: item._id,
-                    quantity: item.qty,
-                })),
-                shippingAddress: address,
-                promoCode: promoResult?.code || null,
-            });
-
+            const payload = {
+                items: cartItems.map(item => ({ product: item._id, quantity: item.qty }))
+                    .sort((a, b) => a.product.localeCompare(b.product)),
+                shippingAddress: address, promoCode: promoResult?.code || null,
+            };
+            const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(payload)));
+            const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+            const storageKey = 'checkout:' + user._id + ':' + fingerprint;
+            const attemptId = sessionStorage.getItem(storageKey) || crypto.randomUUID();
+            sessionStorage.setItem(storageKey, attemptId);
+            let data;
+            try {
+                ({ data } = await api.post('/api/orders/create-payment', { ...payload, attemptId }));
+            } catch (err) {
+                if (err.response?.data?.restart) sessionStorage.removeItem(storageKey);
+                throw err;
+            }
+            if (data.showStatus) {
+                if (data.paymentStatus === 'paid' || data.paymentStatus === 'refunded') {
+                    sessionStorage.removeItem(storageKey);
+                    if (data.paymentStatus === 'paid') clearCart();
+                }
+                navigate('/order-success/' + data.orderId);
+                return;
+            }
+            if (data.preparing) throw new Error('Your checkout is being prepared. Retry in a few seconds.');
             // 3. Open Razorpay checkout
             const options = {
                 key: data.keyId,
@@ -309,18 +331,19 @@ const CheckoutPage = () => {
                 handler: async (response) => {
                     // 4. Payment success — verify on backend
                     try {
-                        await api.post('/api/orders/verify-payment', {
+                        const verified = await api.post('/api/orders/verify-payment', {
                             orderId: data.orderId,
                             razorpayOrderId: response.razorpay_order_id,
                             razorpayPaymentId: response.razorpay_payment_id,
                             razorpaySignature: response.razorpay_signature,
                         });
-                        clearCart();
+                        if (verified.status === 200) {
+                            sessionStorage.removeItem(storageKey);
+                            clearCart();
+                        }
                         navigate(`/order-success/${data.orderId}`);
-                    } catch (err) {
-                        const message = err.response?.data?.message || 'Payment verification failed. Contact support.';
-                        setError(message + ' Payment ID: ' + response.razorpay_payment_id);
-                        setPlacing(false);
+                    } catch {
+                        navigate('/order-success/' + data.orderId);
                     }
                 },
 
@@ -328,10 +351,12 @@ const CheckoutPage = () => {
                     ondismiss: async () => {
                         try {
                             await api.put('/api/orders/' + data.orderId + '/cancel');
+                            sessionStorage.removeItem(storageKey);
                             setError('Checkout cancelled.');
                         } catch {
                             setError('Checkout closed. Check My Orders for the latest status.');
                         }
+                        openingPayment.current = false;
                         setPlacing(false);
                     },
                 },
@@ -339,7 +364,8 @@ const CheckoutPage = () => {
 
             new window.Razorpay(options).open();
         } catch (err) {
-            setError(err.response?.data?.message || 'Error initiating payment. Please try again.');
+            setError(err.response?.data?.message || err.message || 'Error initiating payment. Please try again.');
+            openingPayment.current = false;
             setPlacing(false);
         }
     };

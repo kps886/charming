@@ -1,10 +1,12 @@
 import mongoose from 'mongoose';
 import express from 'express';
+import { schema, validate, validateIds, parseProduct } from '../middleware/validation.js';
 const router = express.Router();
+validateIds(router, ["id","reviewId"]);
 import { queueRestockAlerts, RestockAlert } from '../utils/restockAlerts.js';
 import Product from '../models/Product.js';
 import { protect, shopkeeperAndAbove, employeeAndAbove } from '../middleware/authMiddleware.js';
-import upload, { cloudinary } from '../middleware/uploadMiddleware.js';
+import upload, { storedAssets, uploadImages, queueImageDeletion } from '../middleware/uploadMiddleware.js';
 
 router.get('/staff-summary', protect, employeeAndAbove, async (req, res) => {
     const [products, lowStock, outOfStock] = await Promise.all([
@@ -17,21 +19,25 @@ router.get('/staff-summary', protect, employeeAndAbove, async (req, res) => {
 // @desc    Fetch products with pagination, sorting, search, category filter
 // @route   GET /api/products?page=1&limit=12&sort=newest&category=X&search=Y
 // @access  Public
-router.get('/', async (req, res) => {
+router.get('/', validate(schema.catalog, 'query'), async (req, res) => {
     try {
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(48, parseInt(req.query.limit) || 12);
         const skip = (page - 1) * limit;
+        if (req.query.minPrice !== undefined && req.query.maxPrice !== undefined && Number(req.query.minPrice) > Number(req.query.maxPrice)) {
+            return res.status(400).json({ message: 'Minimum price exceeds maximum price' });
+        }
 
         // Build filter
         const filter = {};
         if (req.query.category) filter.category = req.query.category;
         if (req.query.search) {
+            const literal = req.query.search.replace(/[.*+?^$\x7b\x7d()|[\]\\]/g, '\\$&');
             filter.$or = [
-                { name: { $regex: req.query.search, $options: 'i' } },
-                { description: { $regex: req.query.search, $options: 'i' } },
-                { category: { $regex: req.query.search, $options: 'i' } },
-                { tags: { $regex: req.query.search, $options: 'i' } },
+                { name: { $regex: literal, $options: 'i' } },
+                { description: { $regex: literal, $options: 'i' } },
+                { category: { $regex: literal, $options: 'i' } },
+                { tags: { $regex: literal, $options: 'i' } },
             ];
         }
         if (req.query.minPrice || req.query.maxPrice) {
@@ -93,37 +99,32 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-router.post('/', protect, shopkeeperAndAbove, async (req, res) => {
-    const uploadMiddleware = upload.array('images', 5);
-    uploadMiddleware(req, res, async (err) => {
-        // 3. Catch Multer/Cloudinary errors IMMEDIATELY
-        if (err) {
-            return res.status(400).json({ message: err.message || "Failed to upload images to Cloudinary" });
-        }
+router.post('/', protect, shopkeeperAndAbove, parseProduct(upload, schema.product), async (req, res) => {
+    const assets = [];
+    try {
+        await uploadImages(req.files, assets);
 
-        // 4. If we get here, the upload succeeded. Now we do the database logic.
-        try {;
+        const { name, description, price, category, stock, tags } = req.body;
 
-            const { name, description, price, category, stock, tags } = req.body;
+        const imageUrls = assets.map(asset => asset.url);
+        const parsedTags = tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
 
-            const imageUrls = req.files ? req.files.map(file => file.path) : [];
-            const parsedTags = tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
-
-            const product = await Product.create({
-                name,
-                description,
-                price: Number(price),
-                category,
-                images: imageUrls,
-                stock: Number(stock) || 0,
-                tags: parsedTags,
-                createdBy: req.user._id,
-            });
-            res.status(201).json(product);
-        } catch (error) {
-            res.status(400).json({ message: error.message || 'Error creating product' });
-        }
-    });
+        const product = await Product.create({
+            name,
+            description,
+            price: Number(price),
+            category,
+            images: imageUrls,
+            imageAssets: assets,
+            stock: Number(stock) || 0,
+            tags: parsedTags,
+            createdBy: req.user._id,
+        });
+        res.status(201).json(product);
+    } catch (error) {
+        await queueImageDeletion(assets.map(a => a.publicId));
+        res.status(400).json({ message: error.message || 'Error creating product' });
+    }
 });
 
 router.get('/:id/restock-alert', protect, async (req, res) => {
@@ -147,87 +148,66 @@ router.delete('/:id/restock-alert', protect, async (req, res) => {
     res.json({ subscribed: false });
 });
 
-router.put('/:id', protect, employeeAndAbove, async (req, res) => {
-    const uploadMiddleware = upload.array('images', 5);
-    uploadMiddleware(req, res, async (err) => {
-        // 3. Catch Multer/Cloudinary errors IMMEDIATELY
-        if (err) {
-            return res.status(400).json({ message: err.message || "Failed to upload images to Cloudinary" });
+router.put('/:id', protect, employeeAndAbove, parseProduct(upload, schema.productEdit), async (req, res) => {
+    const assets = [];
+    try {
+        await uploadImages(req.files, assets);
+        const updatedProduct = await mongoose.connection.transaction(async session => {
+            const product = await Product.findById(req.params.id).select('+restockSubscribers').session(session);
+            if (!product) return null;
+            const previousStock = product.stock;
+
+            const { name, description, price, category, stock, tags, existingImages } = req.body;
+
+            const keep = existingImages === undefined ? product.images : JSON.parse(existingImages);
+            if (!Array.isArray(keep) || keep.some(url => !product.images.includes(url)) || new Set(keep).size !== keep.length)
+                throw new Error('Invalid retained images');
+            const combinedImages = [...keep, ...assets.map(a => a.url)];
+            if (combinedImages.length > 5 && (assets.length || existingImages !== undefined)) throw new Error('Choose up to five images');
+            const old = storedAssets(product);
+            await queueImageDeletion([...old].filter(([url]) => !keep.includes(url)).map(([,id]) => id), session);
+            product.imageAssets = [...keep.filter(url => old.has(url)).map(url => ({ url, publicId: old.get(url) })), ...assets];
+            product.images = combinedImages;
+
+            if (name !== undefined) product.name = name;
+            if (description !== undefined) product.description = description;
+            if (price !== undefined) product.price = Number(price);
+            if (category !== undefined) product.category = category;
+            if (stock !== undefined) {
+                const quantity = Number(stock);
+                if (!Number.isSafeInteger(quantity) || quantity < 0 || stock === '') throw new Error('Enter a non-negative whole stock quantity');
+                product.stock = quantity;
+            }
+
+            if (tags !== undefined) {
+                product.tags = tags.split(',').map(tag => tag.trim()).filter(Boolean);
+            }
+
+            if (product.stock > previousStock) await queueRestockAlerts(product, session);
+            await product.save({ session });
+            const response = product.toObject();
+            delete response.restockSubscribers;
+            return response;
+        });
+        if (!updatedProduct) {
+            await queueImageDeletion(assets.map(a => a.publicId));
+            return res.status(404).json({ message: 'Product not found' });
         }
-        try {
-            const updatedProduct = await mongoose.connection.transaction(async session => {
-                const product = await Product.findById(req.params.id).select('+restockSubscribers').session(session);
-                if (!product) return null;
-                const previousStock = product.stock;
-
-                const { name, description, price, category, stock, tags, existingImages } = req.body;
-
-                const newImageUrls = req.files ? req.files.map(file => file.path) : [];
-                const parsedExistingImages = existingImages ? JSON.parse(existingImages) : [];
-
-                const combinedImages = [...parsedExistingImages, ...newImageUrls];
-
-                if (name !== undefined) product.name = name;
-                if (description !== undefined) product.description = description;
-                if (price !== undefined) product.price = Number(price);
-                if (category !== undefined) product.category = category;
-                if (stock !== undefined) {
-                    const quantity = Number(stock);
-                    if (!Number.isSafeInteger(quantity) || quantity < 0 || stock === '') throw new Error('Enter a non-negative whole stock quantity');
-                    product.stock = quantity;
-                }
-
-                if (tags !== undefined) {
-                    product.tags = tags.split(',').map(tag => tag.trim()).filter(Boolean);
-                }
-
-                if (combinedImages.length > 0) {
-                    product.images = combinedImages;
-                } else if (existingImages === "[]" && newImageUrls.length === 0) {
-                    product.images = [];
-                }
-
-                if (product.stock > previousStock) await queueRestockAlerts(product, session);
-                await product.save({ session });
-                const response = product.toObject();
-                delete response.restockSubscribers;
-                return response;
-            });
-            if (!updatedProduct) return res.status(404).json({ message: 'Product not found' });
-            res.json(updatedProduct);
-        } catch (error) {
-            res.status(400).json({ message: error.message || 'Error updating product' });
-        }
-    });
+        res.json(updatedProduct);
+    } catch (error) {
+        await queueImageDeletion(assets.map(a => a.publicId));
+        res.status(400).json({ message: error.message || 'Error updating product' });
+    }
 });
 
 router.delete('/:id', protect, shopkeeperAndAbove, async (req, res) => {
     try {
-        const product = await Product.findById(req.params.id);
+        const product = await mongoose.connection.transaction(async session => {
+            const deleted = await Product.findByIdAndDelete(req.params.id, { session });
+            if (deleted) await queueImageDeletion([...storedAssets(deleted).values()], session);
+            return deleted;
+        });
         if (!product) return res.status(404).json({ message: 'Product not found' });
-
-        if (product.images && product.images.length > 0) {
-            for (const imageUrl of product.images) {
-                try {
-                    const public_id = imageUrl
-                        .substring(imageUrl.indexOf('charming_products'))
-                        .split('.')[0];
-
-                    cloudinary.uploader.destroy(public_id, { invalidate: true }).then(result => {
-                        if (result.result !== 'ok') {
-                            console.error("Cloudinary deletion failed for:", imageUrl, result);
-                        }
-                        else {
-                            console.log("Cloudinary deletion successful for:", result);
-                        }
-                    });
-                } catch (imgError) {
-                    console.error("Cloudinary deletion failed for:", imageUrl, imgError);
-                }
-            }
-        }
-
-        await Product.deleteOne({ _id: req.params.id });
         res.json({ message: 'Product removed successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
@@ -237,7 +217,7 @@ router.delete('/:id', protect, shopkeeperAndAbove, async (req, res) => {
 // @desc    Add a review
 // @route   POST /api/products/:id/reviews
 // @access  Private
-router.post('/:id/reviews', protect, async (req, res) => {
+router.post('/:id/reviews', protect, validate(schema.review), async (req, res) => {
     const { rating, comment } = req.body;
 
     if (!rating || rating < 1 || rating > 5) {
@@ -273,7 +253,7 @@ router.post('/:id/reviews', protect, async (req, res) => {
     }
 });
 
-router.put('/:id/reviews/:reviewId/toggle', protect, shopkeeperAndAbove, async (req, res) => {
+router.put('/:id/reviews/:reviewId/toggle', protect, shopkeeperAndAbove, validate(schema.moderation), async (req, res) => {
     try {
         const review = await mongoose.connection.transaction(async session => {
             const product = await Product.findById(req.params.id).session(session);

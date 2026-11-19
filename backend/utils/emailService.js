@@ -1,10 +1,14 @@
+import { paise } from './money.js';
+import 'dotenv/config';
 import nodemailer from 'nodemailer';
 
 // ── Transporter ───────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: Number(process.env.EMAIL_PORT),
-    secure: false,
+    secure: Number(process.env.EMAIL_PORT) === 465,
+    socketTimeout: 30000,
+    connectionTimeout: 10000,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
@@ -21,24 +25,16 @@ export async function sendRestockEmail(email, product) {
 }
 
 // ── Shared email wrapper ──────────────────────────────────────
-export const sendEmail = async ({ to, subject, html }) => {
-    try {
-        await transporter.sendMail({
-            from: process.env.EMAIL_FROM,
-            to,
-            subject,
-            html,
-        });
-        console.log(`Email sent → ${to} | ${subject}`);
-    } catch (err) {
-        console.error('Email failed:', err.message);
-    }
-};
+export async function sendEmail(message) {
+    const result = await transporter.sendMail({ from: process.env.EMAIL_FROM, ...message });
+    if (result?.rejected?.length && !result.accepted?.length) throw new Error('Recipient rejected');
+    return result;
+}
 
-export const sendPasswordResetEmail = async (userEmail, userName, resetUrl) => {
+export const passwordResetMessage = (userEmail, resetUrl) => {
     const html = layout(`
         <div class="title">Password Reset Request</div>
-        <div class="sub">Hi ${userName}, we received a request to reset your password.</div>
+        <div class="sub">We received a request to reset your password.</div>
         
         <p style="margin-bottom: 24px; font-size: 14px; line-height: 1.6; color: #444;">
             Click the button below to choose a new password. This link is only valid for <strong>10 minutes</strong>.
@@ -51,11 +47,11 @@ export const sendPasswordResetEmail = async (userEmail, userName, resetUrl) => {
         </p>
     `);
 
-    await sendEmail({
+    return {
         to: userEmail,
         subject: 'Reset your password for Charming',
         html,
-    });
+    };
 };
 
 // ── Shared layout wrapper ─────────────────────────────────────
@@ -137,7 +133,7 @@ const itemsHtml = (items) =>
                 <div class="item-name">${item.name}</div>
                 <div class="item-qty">Qty: ${item.quantity}</div>
             </div>
-            <div class="item-price">₹${(item.price * item.quantity).toLocaleString('en-IN')}</div>
+            <div class="item-price">₹${(((item.pricePaise ?? paise(item.price)) * item.quantity) / 100).toLocaleString('en-IN')}</div>
         </div>
     `).join('');
 

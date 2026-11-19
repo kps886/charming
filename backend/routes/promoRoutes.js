@@ -1,15 +1,18 @@
+import { paise, discountPaise } from '../utils/money.js';
 import express from 'express';
 import PromoCode from '../models/PromoCode.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
 
+import { schema, validate, validateIds } from '../middleware/validation.js';
 const router = express.Router();
+validateIds(router, ["id"]);
 
 // ─────────────────────────────────────────────
 // POST /api/promo/validate
 // Validates a promo code against a subtotal.
 // Called from the checkout page.
 // ─────────────────────────────────────────────
-router.post('/validate', protect, async (req, res) => {
+router.post('/validate', protect, validate(schema.promoCheck), async (req, res) => {
     const { code, subtotal } = req.body;
 
     if (!code || !subtotal) {
@@ -28,7 +31,7 @@ router.post('/validate', protect, async (req, res) => {
         if (subtotal < promo.minOrderValue)
             return res.status(400).json({ message: `Minimum order value ₹${promo.minOrderValue} required` });
 
-        const discount = Math.round(promo.calcDiscount(subtotal));
+        const discount = discountPaise(promo, paise(subtotal)) / 100;
 
         res.json({
             valid:         true,
@@ -56,7 +59,7 @@ router.get('/', protect, adminOnly, async (req, res) => {
 });
 
 // Create promo code
-router.post('/', protect, adminOnly, async (req, res) => {
+router.post('/', protect, adminOnly, validate(schema.promo), async (req, res) => {
     try {
         const promo = await PromoCode.create({ ...req.body, code: req.body.code.toUpperCase() });
         res.status(201).json(promo);
@@ -66,7 +69,7 @@ router.post('/', protect, adminOnly, async (req, res) => {
 });
 
 // Update promo code
-router.put('/:id', protect, adminOnly, async (req, res) => {
+router.put('/:id', protect, adminOnly, validate(schema.promoEdit), async (req, res) => {
     try {
         const promo = await PromoCode.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
         if (!promo) return res.status(404).json({ message: 'Promo code not found' });

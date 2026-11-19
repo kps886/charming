@@ -219,3 +219,32 @@ JWT_EXPIRE=30d       # Token expiry
 - [ ] Log in with the admin credentials used during seeding.
 - [ ] Change admin password immediately via profile
 - [ ] Create shopkeeper and employee accounts via Admin Dashboard
+
+## Checkout rollout and historical prices
+
+Deploy the API and storefront together. The updated storefront supplies a checkout attempt ID. Older clients reuse an active reservation for the same buyer, basket and address. Refresh older clients to receive the updated payment confirmation UI.
+Enable the signed Razorpay `payment.captured` event. A signed browser callback triggers a server-side payment fetch.
+If a verified capture arrives after a hold expires and its time is unknown, staff can find the order under **Payment review**.
+The signed capture event can resolve it automatically. Staff should use the payment reference to verify unresolved cases in Razorpay before arranging any refund.
+
+New order snapshots store integer paise for each unit price, subtotal, delivery fee, discount, and total.
+The rupee fields remain available to existing API consumers. For older orders:
+
+1. Back up the database and run the comparison on a restored copy first.
+2. Rebuild the historical payable amount from purchased quantities and unit prices, the original delivery fee and recorded discount. Apply the original ₹1 minimum and round the final charge to paise. Multiplying a rounded historical total by 100 can lose the original fractional part.
+3. Match that amount, currency, and gateway order ID against Razorpay. For paid/refunded orders also match the payment and refund references. Set aside missing records and mismatches for manual review.
+4. In small restartable batches, populate the paise fields and their rupee projections only for verified rows missing `totalPaise`. Keep before/after totals and compare receipts, reporting and refunds before applying the same process to production. Existing pending checkouts use their original item snapshots for capture validation in the meantime.
+
+## Daily payment reconciliation
+
+Open **Orders → Payment reconciliation** in the admin or shopkeeper dashboard. Staff can see the last completed day, open discrepancies and gateway references. Recording a resolution saves the staff member, time and explanation. It does not initiate a refund or change fulfillment.
+
+While the API is running, the worker checks every five minutes for a completed UTC day to process. On first startup it starts with yesterday. Set `RECONCILIATION_START_DATE=YYYY-MM-DD` before first startup to backfill from an earlier day. The MongoDB checkpoint advances only after payments, refunds and the settlement report all succeed. Razorpay credentials need read access to each of those reports. Settlement comparisons use the gross transaction amount in paise. [Razorpay settlement report](https://razorpay.com/docs/api/settlements/fetch-recon/)
+
+## Account mail and product images
+
+Account verification, email changes and recovery use the configured SMTP transport. The API worker retries eligible delivery failures while the code or link is valid. The `accountmails` collection records the purpose, attempt count, delivery state and failure code for 30 days. Queued message bodies are encrypted. Set the same high-entropy `ACCOUNT_MAIL_KEY` on every API instance, or the worker derives its key from `JWT_SECRET`. Keep that key stable while mail is queued.
+
+Product images require `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET`. Staff can upload JPEG, PNG or WebP files up to 5 MiB each. Removed assets are queued in the same MongoDB transaction as the catalog change and retried by the API worker.
+
+The image integration test normally uses a local Cloudinary double. To exercise the same create, replace and delete requests against a dedicated staging cloud, set `TEST_MONGO_URI` to a disposable replica set and provide `TEST_CLOUDINARY_CLOUD_NAME`, `TEST_CLOUDINARY_API_KEY` and `TEST_CLOUDINARY_API_SECRET`. From the repository root run `node --test --test-name-pattern="uploads, replaces" backend/test/checkout.test.js`.

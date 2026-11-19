@@ -41,14 +41,18 @@ const userSchema = new mongoose.Schema({
         default: null,
     },
     isActive: { type: Boolean, default: true },
-    resetPasswordToken: String,
+    sessionVersion: { type: Number, default: 0 },
+    pendingEmail: String,
+    emailChangeHash: { type: String, select: false },
+    emailChangeExpires: Date,
+    resetPasswordToken: { type: String, select: false },
     resetPasswordExpire: Date,
     isVerified: { 
         type: Boolean, 
         default: false 
     },
     otp: { 
-        type: String 
+        type: String, select: false
     },
     otpExpire: { 
         type: Date 

@@ -56,7 +56,7 @@ export const AuthProvider = ({ children }) => {
             const msg = err.response?.data?.message || 'Registration failed. Please try again.';
             setAuthError(msg);
             setLoading(false);
-            return { success: false, error: msg };
+            return { success: false, error: msg, requiresVerification: err.response?.data?.requiresVerification, email: err.response?.data?.email };
         }
     };
 
@@ -85,6 +85,12 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const updateSession = (data) => {
+        const session = { _id: data._id, name: data.name, email: data.email, role: data.role, token: data.token };
+        localStorage.setItem('charmingUser', JSON.stringify(session));
+        setUser(session);
+    };
+
     const logout = () => {
         localStorage.removeItem('charmingUser');
         localStorage.removeItem('cart');
@@ -106,6 +112,7 @@ export const AuthProvider = ({ children }) => {
             login,
             register,
             logout,
+            updateSession,
             isAdmin,
             isShopkeeper,
             isEmployee,

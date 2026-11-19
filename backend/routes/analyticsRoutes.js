@@ -1,3 +1,4 @@
+import { paise } from '../utils/money.js';
 import express from 'express';
 import Order   from '../models/Order.js';
 import Product from '../models/Product.js';
@@ -24,13 +25,13 @@ router.get('/', protect, adminOnly, async (req, res) => {
         ]);
 
         // ── Summary cards ─────────────────────────────────────
-        const totalRevenue  = allOrders.reduce((a, o) => a + o.total, 0);
+        const totalRevenue  = allOrders.reduce((a, o) => a + (o.totalPaise ?? paise(o.total)), 0) / 100;
         const todayRevenue  = allOrders
             .filter(o => o.paidAt >= todayStart)
-            .reduce((a, o) => a + o.total, 0);
+            .reduce((a, o) => a + (o.totalPaise ?? paise(o.total)), 0) / 100;
         const monthRevenue  = allOrders
             .filter(o => o.paidAt >= monthStart)
-            .reduce((a, o) => a + o.total, 0);
+            .reduce((a, o) => a + (o.totalPaise ?? paise(o.total)), 0) / 100;
         const totalOrders   = allOrders.length;
         const todayOrders   = allOrders.filter(o => o.createdAt >= todayStart).length;
 
@@ -57,12 +58,12 @@ router.get('/', protect, adminOnly, async (req, res) => {
                 const key = new Date(o.paidAt)
                     .toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
                 if (revenueByDay[key] !== undefined) {
-                    revenueByDay[key] += o.total;
+                    revenueByDay[key] += o.totalPaise ?? paise(o.total);
                 }
             });
 
         const revenueChart = Object.entries(revenueByDay).map(([date, revenue]) => ({
-            date, revenue,
+            date, revenue: revenue / 100,
         }));
 
         // ── Orders by day (last 7 days) ───────────────────────
@@ -93,12 +94,12 @@ router.get('/', protect, adminOnly, async (req, res) => {
                     productSales[id] = { name: item.name, qty: 0, revenue: 0 };
                 }
                 productSales[id].qty     += item.quantity;
-                productSales[id].revenue += item.price * item.quantity;
+                productSales[id].revenue += (item.pricePaise ?? paise(item.price)) * item.quantity;
             });
         });
         const topProducts = Object.values(productSales)
             .sort((a, b) => b.revenue - a.revenue)
-            .slice(0, 8);
+            .slice(0, 8).map(row => ({ ...row, revenue: row.revenue / 100 }));
 
         // ── Category revenue breakdown ────────────────────────
         const categoryRevenue = {};
@@ -106,11 +107,11 @@ router.get('/', protect, adminOnly, async (req, res) => {
             order.items.forEach(item => {
                 const product = allProducts.find(p => p._id.toString() === item.product?.toString());
                 const cat     = product?.category || 'Other';
-                categoryRevenue[cat] = (categoryRevenue[cat] || 0) + item.price * item.quantity;
+                categoryRevenue[cat] = (categoryRevenue[cat] || 0) + (item.pricePaise ?? paise(item.price)) * item.quantity;
             });
         });
         const categoryChart = Object.entries(categoryRevenue)
-            .map(([name, value]) => ({ name, value }))
+            .map(([name, value]) => ({ name, value: value / 100 }))
             .sort((a, b) => b.value - a.value);
 
         // ── New users over last 30 days ───────────────────────
