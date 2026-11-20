@@ -42,7 +42,9 @@ const OrderSuccessPage = () => {
         message = 'Check the status again before attempting another payment.';
     } else if (order?.paymentStatus === 'refunded') {
         title = 'Payment refunded';
-    } else if (order?.captureReview) {
+    } else if (order?.paymentStatus === 'refund_review') {
+        title = 'Refund awaiting verification';
+    } else if (order?.paymentUnderReview) {
         title = 'Payment under review';
         message = 'Our team will check this payment. Keep your order reference and avoid paying again.';
     } else if (order?.orderStatus === 'cancelled') {
@@ -51,7 +53,7 @@ const OrderSuccessPage = () => {
     } else if (order?.paymentStatus === 'paid') {
         title = 'Order confirmed';
         message = 'Your payment was received. You can track this order in My Orders.';
-    } else if (order?.authorizedPaymentId && order.paymentStatus === 'pending') {
+    } else if (order?.paymentAuthorized && order.paymentStatus === 'pending') {
         title = 'Awaiting payment capture';
         message = 'Your payment was authorized. We’ll confirm the order once the payment is captured.';
     } else if (order?.paymentStatus === 'failed') {

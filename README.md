@@ -248,3 +248,14 @@ Account verification, email changes and recovery use the configured SMTP transpo
 Product images require `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET`. Staff can upload JPEG, PNG or WebP files up to 5 MiB each. Removed assets are queued in the same MongoDB transaction as the catalog change and retried by the API worker.
 
 The image integration test normally uses a local Cloudinary double. To exercise the same create, replace and delete requests against a dedicated staging cloud, set `TEST_MONGO_URI` to a disposable replica set and provide `TEST_CLOUDINARY_CLOUD_NAME`, `TEST_CLOUDINARY_API_KEY` and `TEST_CLOUDINARY_API_SECRET`. From the repository root run `node --test --test-name-pattern="uploads, replaces" backend/test/checkout.test.js`.
+
+## Checkout and fulfillment rules
+
+- Cart and checkout request a server quote. The current storefront submits the reviewed quote ID when reserving an order. A changed quote requires a second payment click. Shipping is free from ₹500 of merchandise before discounts. The minimum payable amount is ₹1.
+- Promo uses are held alongside stock and released on expiry or unpaid cancellation. A fulfilled purchase consumes its use permanently, including when it is later cancelled or returned. During rollout, pending orders created by older API versions acquire a promo use at capture. A capture that can no longer fulfill is flagged for refund review.
+- Employees can correct stock with the original count and a reason. Catalog edits and returns require a shopkeeper or admin. A stale correction returns HTTP 409. Successful corrections record the staff ID, reason, and before/after quantities.
+- Capture moves an order to processing. Staff can ship a processing order and deliver a shipped order. Shopkeepers and admins can cancel before delivery with a reason. Cancelling an unshipped paid order restores its allocated stock once. Cancelling in transit opens a return. Delivered orders keep their delivery date when a manager opens a return.
+- Staff record cumulative sellable and damaged quantities for each returned line. Only newly received sellable units go back on sale. Historical cancellations with unknown stock movements require a physical stock check before a correction.
+- A full refund is verified against Razorpay's refund ID, payment ID, INR amount and processed status. Previous manually recorded refunds appear in **Needs refund** for verification. Staff can retry a pending or failed check from the order. [Razorpay refund fields](https://razorpay.com/docs/api/refunds/fetch-with-id/)
+
+The [database recovery runbook](backend/RECOVERY.md) includes the measured local restore drill and the steps for a production backup rehearsal.

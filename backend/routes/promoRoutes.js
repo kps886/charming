@@ -1,4 +1,5 @@
-import { paise, discountPaise } from '../utils/money.js';
+import { priceTotals } from '../utils/pricing.js';
+import { paise } from '../utils/money.js';
 import express from 'express';
 import PromoCode from '../models/PromoCode.js';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
@@ -20,31 +21,10 @@ router.post('/validate', protect, validate(schema.promoCheck), async (req, res) 
     }
 
     try {
-        const promo = await PromoCode.findOne({ code: code.toUpperCase() });
-
-        if (!promo)        return res.status(404).json({ message: 'Invalid promo code' });
-        if (!promo.isActive) return res.status(400).json({ message: 'This promo code is no longer active' });
-        if (promo.expiresAt && promo.expiresAt < new Date())
-            return res.status(400).json({ message: 'This promo code has expired' });
-        if (promo.usageLimit !== null && promo.usedCount >= promo.usageLimit)
-            return res.status(400).json({ message: 'Promo code usage limit reached' });
-        if (subtotal < promo.minOrderValue)
-            return res.status(400).json({ message: `Minimum order value ₹${promo.minOrderValue} required` });
-
-        const discount = discountPaise(promo, paise(subtotal)) / 100;
-
-        res.json({
-            valid:         true,
-            code:          promo.code,
-            discountType:  promo.discountType,
-            discountValue: promo.discountValue,
-            discount,       // actual ₹ amount off
-            message:       promo.discountType === 'flat'
-                ? `₹${discount} off applied!`
-                : `${promo.discountValue}% off — ₹${discount} saved!`,
-        });
+        const quote = await priceTotals(paise(subtotal), code.trim().toUpperCase());
+        res.json({ ...quote, valid: true, code: quote.promoCode, message: 'Promo applied' });
     } catch (err) {
-        res.status(500).json({ message: 'Server error' });
+        res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error' });
     }
 });
 
@@ -71,7 +51,12 @@ router.post('/', protect, adminOnly, validate(schema.promo), async (req, res) =>
 // Update promo code
 router.put('/:id', protect, adminOnly, validate(schema.promoEdit), async (req, res) => {
     try {
-        const promo = await PromoCode.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        const filter = { _id: req.params.id };
+        if (req.body.usageLimit != null) filter.$expr = {
+            $lte: [{ $add: [{ $ifNull: ['$usedCount', 0] }, { $ifNull: ['$reservedCount', 0] }] }, req.body.usageLimit],
+        };
+        const promo = await PromoCode.findOneAndUpdate(filter, req.body, { returnDocument: 'after', runValidators: true });
+        if (!promo && await PromoCode.exists({ _id: req.params.id })) return res.status(409).json({ message: 'Limit is below existing uses and reservations' });
         if (!promo) return res.status(404).json({ message: 'Promo code not found' });
         res.json(promo);
     } catch (err) {
@@ -82,7 +67,8 @@ router.put('/:id', protect, adminOnly, validate(schema.promoEdit), async (req, r
 // Delete promo code
 router.delete('/:id', protect, adminOnly, async (req, res) => {
     try {
-        const promo = await PromoCode.findByIdAndDelete(req.params.id);
+        const promo = await PromoCode.findOneAndDelete({ _id: req.params.id, $or: [{ reservedCount: 0 }, { reservedCount: null }] });
+        if (!promo && await PromoCode.exists({ _id: req.params.id })) return res.status(409).json({ message: 'Disable this promo until its active checkouts clear.' });
         if (!promo) return res.status(404).json({ message: 'Promo code not found' });
         res.json({ message: 'Promo code deleted' });
     } catch (err) {

@@ -11,13 +11,16 @@ const EmployeeDashboard = () => {
     const [editingId, setEditingId] = useState(null);
     const [stockEdit, setStockEdit] = useState('');
 
+    const [expectedStock, setExpectedStock] = useState(0);
+    const [reason, setReason] = useState('');
     const handleUpdateStock = async (productId) => {
         try {
-            await api.put(`/api/products/${productId}`, { stock: parseInt(stockEdit) });
+            await api.put(`/api/products/${productId}/stock`, { stock: Number(stockEdit), expectedStock, reason });
             toast.success('Stock updated successfully');
             setEditingId(null);
             refresh();
         } catch (err) {
+            if (err.response?.status === 409) { setEditingId(null); refresh(); }
             toast.error(err.response?.data?.message || 'Failed to update stock');
         }
     };
@@ -102,7 +105,8 @@ const EmployeeDashboard = () => {
                                                     className="w-20 p-1 bg-primary-bg border border-accent-gold rounded text-sm focus:outline-none"
                                                     autoFocus
                                                 />
-                                                <button onClick={() => handleUpdateStock(p._id)}
+                                                <input aria-label="Stock correction reason" placeholder="Correction reason" maxLength={500} value={reason} onChange={e => setReason(e.target.value)} />
+                                                <button disabled={!reason.trim() || stockEdit === ''} onClick={() => handleUpdateStock(p._id)}
                                                     className="text-xs px-2 py-1 bg-accent-gold text-primary-bg rounded font-bold hover:bg-yellow-500"
                                                 >
                                                     Save
@@ -115,7 +119,7 @@ const EmployeeDashboard = () => {
                                             </div>
                                         ) : (
                                             <button
-                                                onClick={() => { setEditingId(p._id); setStockEdit(p.stock.toString()); }}
+                                                onClick={() => { setReason(''); setExpectedStock(p.stock); setEditingId(p._id); setStockEdit(p.stock.toString()); }}
                                                 className="text-xs px-3 py-1 border border-accent-gold/40 text-accent-gold rounded hover:opacity-80 transition-opacity"
                                             >
                                                 Update Stock

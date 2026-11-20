@@ -148,7 +148,7 @@ const MyOrdersPage = () => {
                                 <div className="border-t border-border-color p-4 md:p-6 space-y-6 bg-primary-bg/30">
                                     {/* Tracker */}
                                     <OrderTracker status={order.orderStatus} />
-                                    {order.orderStatus === 'cancelled' && order.paymentStatus === 'paid' && <p>Refund pending</p>}
+                                    {((['awaiting-return','inspected'].includes(order.returnState) || order.orderStatus === 'cancelled') && order.paymentStatus === 'paid' || order.paymentStatus === 'refund_review') && <p>Refund pending verification</p>}
                                     {order.paymentStatus === 'refunded' && <p>Refund complete {order.refundReference && '· ' + order.refundReference}</p>}
 
                                     {/* Tracking number */}

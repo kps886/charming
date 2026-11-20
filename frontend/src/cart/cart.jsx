@@ -2,7 +2,7 @@ import React, { useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CartContext } from './cartProvider';
 import { useAuth } from '../auth/AuthContext';
-import { DELIVERY_THRESHOLD, DELIVERY_FEE } from '../config/constants';
+import useCheckoutQuote from '../checkout/useCheckoutQuote';
 import { optimizeImage } from '../utils/cloudinary';
 
 const TrashIcon = () => (
@@ -14,12 +14,13 @@ const TrashIcon = () => (
 );
 
 const CartPage = () => {
-    const { cartItems, removeFromCart, updateQty, totalPrice, clearCart } = useContext(CartContext);
+    const { cartItems, removeFromCart, updateQty, clearCart } = useContext(CartContext);
     const { isLoggedIn } = useAuth();
     const navigate = useNavigate();
 
-    const deliveryFee = totalPrice >= DELIVERY_THRESHOLD || totalPrice === 0 ? 0 : DELIVERY_FEE;
-    const finalTotal = totalPrice + deliveryFee;
+    const { quote, error, retry } = useCheckoutQuote(cartItems);
+    const { subtotal: totalPrice, deliveryFee, total: finalTotal } = quote || {};
+    const quotedItems = cartItems.map(item => ({ ...item, price: quote?.items.find(line => line.product === item._id)?.price ?? item.price }));
 
     const handleCheckout = () => {
         if (!isLoggedIn) {
@@ -48,7 +49,7 @@ const CartPage = () => {
             ) : (
                 <div className="max-w-4xl mx-auto">
                     <div className="space-y-4 mb-8">
-                        {cartItems.map((item) => (
+                        {quotedItems.map((item) => (
                             <div key={item._id} className="flex items-center gap-4 bg-secondary-bg p-4 border border-border-color">
                                 <img
                                     src={optimizeImage(item.images?.[0]) || 'https://placehold.co/80x80/222222/D4AF37?text=C'}
@@ -92,6 +93,7 @@ const CartPage = () => {
                     </div>
 
                     <div className="bg-secondary-bg border border-border-color p-6">
+                        {quote ? <>
                         <div className="flex justify-between items-center mb-2 text-text-secondary">
                             <span>Subtotal</span>
                             <span>₹{totalPrice.toLocaleString('en-IN')}</span>
@@ -102,18 +104,19 @@ const CartPage = () => {
                                 {deliveryFee === 0 ? 'Free' : `₹${deliveryFee}`}
                             </span>
                         </div>
-                        {totalPrice > 0 && totalPrice < DELIVERY_THRESHOLD && (
+                        {quote.remainingForFreeDelivery > 0 && (
                             <p className="text-xs text-text-secondary mb-4 bg-primary-bg p-2 rounded border border-border-color">
-                                💡 Add ₹{(DELIVERY_THRESHOLD - totalPrice).toLocaleString('en-IN')} more for free delivery
+                                💡 Add ₹{quote.remainingForFreeDelivery.toLocaleString('en-IN')} more for free delivery
                             </p>
                         )}
                         <div className="border-t border-border-color pt-4 flex justify-between items-center mb-6">
                             <h3 className="text-xl font-serif font-bold">Total</h3>
                             <h3 className="text-xl font-bold text-accent-gold">₹{finalTotal.toLocaleString('en-IN')}</h3>
                         </div>
+                        </> : <p role="status">{error || 'Loading prices…'} {error && <button onClick={retry}>Retry</button>}</p>}
                         <div className="flex flex-col sm:flex-row gap-3">
                             <button
-                                onClick={handleCheckout}
+                                onClick={handleCheckout} disabled={!quote}
                                 className="flex-1 bg-accent-gold text-primary-bg font-bold py-3 uppercase tracking-wider hover:bg-yellow-500 hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all duration-300"
                             >
                                 {isLoggedIn ? 'Proceed to Checkout →' : 'Sign In to Checkout'}

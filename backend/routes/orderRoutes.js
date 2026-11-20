@@ -1,4 +1,5 @@
-import { paise, discountPaise } from '../utils/money.js';
+import { expectedPaise } from '../utils/money.js';
+import { priceBasket, publicQuote, checkQuote } from '../utils/pricing.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import { combineItems, reserveOrder, completePayment, releaseReservation, orderError } from '../utils/orderInventory.js';
@@ -6,12 +7,13 @@ import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
-import PromoCode from '../models/PromoCode.js';
 import { protect, employeeAndAbove, shopkeeperAndAbove } from '../middleware/authMiddleware.js';
 import User from '../models/User.js';
 import { sendStatusUpdate } from '../utils/emailService.js';
 import { ReconciliationCase, reconciliationStatus } from '../utils/reconciliation.js';
 import { schema, validate, validateIds } from '../middleware/validation.js';
+import { cancelSoldStock, inspectReturn } from '../utils/orderReturns.js';
+import { orderResponse, allowedStatuses } from '../utils/responses.js';
 const router = express.Router();
 validateIds(router, ["id"]);
 
@@ -26,33 +28,21 @@ export const razorpay = new Razorpay({
 //            Returns a razorpayOrderId the frontend passes to Razorpay SDK.
 // POST /api/orders/create-payment
 // ─────────────────────────────────────────────
-async function prepareOrder(id, fingerprint, items, address, code, user, legacyAttemptKey) {
-    const verified = [];
-    let subtotal = 0;
-    for (const item of items) {
-        const product = await Product.findById(item.product);
-        if (!product) throw orderError(404, 'Product no longer available');
-        const price = product.pricePaise ?? paise(product.price);
-        subtotal += price * item.quantity;
-        if (!Number.isSafeInteger(subtotal) || subtotal > Number.MAX_SAFE_INTEGER - 5000) throw orderError(400, 'Order amount too large');
-        verified.push({ product: product._id, name: product.name, image: product.images?.[0],
-            quantity: item.quantity, pricePaise: price, price: price / 100 });
-    }
-    const delivery = paise(Order.calcDeliveryFee(subtotal / 100));
-    let discount = 0;
+router.post('/quote', validate(schema.quote), (req, res, next) => req.body.promoCode ? protect(req, res, next) : next(), async (req, res) => {
+    const items = combineItems(req.body.items).sort((a,b) => a.product.localeCompare(b.product));
+    const code = req.body.promoCode?.trim().toUpperCase() || null;
     if (code) {
-        const promo = await PromoCode.findOne({ code });
-        if (!promo?.isActive || (promo.expiresAt && promo.expiresAt < new Date())
-            || (promo.usageLimit != null && promo.usedCount >= promo.usageLimit)
-            || subtotal < paise(promo.minOrderValue)) throw orderError(400, 'Promo code unavailable for this order');
-        discount = discountPaise(promo, subtotal);
+        // A buyer may already hold the last use while resuming this basket.
+        const holds = Order.find({ user: req.user._id, promoCode: code, promoHold: { $ne: null },
+            orderStatus: 'pending', reservationExpiresAt: { $gt: new Date() } });
+        for await (const held of holds.cursor()) {
+            if (held.items.length === items.length && held.items.every((line,i) =>
+                String(line.product) === items[i].product && line.quantity === items[i].quantity)) return res.json(publicQuote(held));
+        }
     }
-    const total = Math.max(subtotal + delivery - discount, 100);
-    return reserveOrder({ _id: id, legacyAttemptKey, checkoutFingerprint: fingerprint, user, shippingAddress: address, items: verified,
-        promoCode: code, subtotalPaise: subtotal, discountPaise: discount, deliveryFeePaise: delivery, totalPaise: total,
-        subtotal: subtotal / 100, discount: discount / 100, promoDiscount: discount / 100,
-        deliveryFee: delivery / 100, total: total / 100 });
-}
+    const snapshot = await priceBasket(items, code);
+    res.json(publicQuote(snapshot));
+});
 
 async function attachGatewayOrder(order) {
     // The stable receipt lets a retry recover a successful external write whose response was lost.
@@ -107,13 +97,19 @@ router.post('/create-payment', protect, validate(schema.checkout), async (req, r
         let order = await Order.findById(id).select('+checkoutFingerprint');
         if (!order) {
             try {
-                order = await prepareOrder(id, fingerprint, items, address, code, req.user._id, attemptId === undefined ? key : undefined);
+                order = await reserveOrder({ _id: id, legacyAttemptKey: attemptId === undefined ? key : undefined,
+                    checkoutFingerprint: fingerprint, user: req.user._id, shippingAddress: address }, async session => {
+                    const priced = await priceBasket(items, code, session);
+                    checkQuote(priced, req.body.quoteId);
+                    return priced;
+                });
             } catch (err) {
                 order = await Order.findById(id).select('+checkoutFingerprint');
                 if (!order) throw err;
             }
         }
         if (order.checkoutFingerprint !== fingerprint) throw orderError(409, 'Checkout details changed for this attempt');
+        if (order.paymentStatus === 'pending' && order.orderStatus === 'pending' && !order.authorizedPaymentId && !order.captureReview) checkQuote(order, req.body.quoteId);
         if (order.paymentStatus === 'pending' && order.orderStatus === 'pending' && !order.razorpayOrderId) {
             order = await attachGatewayOrder(order);
         }
@@ -130,7 +126,7 @@ router.post('/create-payment', protect, validate(schema.checkout), async (req, r
             subtotal: order.subtotal, deliveryFee: order.deliveryFee, discount: order.discount, total: order.total });
     } catch (err) {
         if (!err.status) console.error('Checkout preparation failed', err.message || err.error?.description);
-        res.status(err.status || 503).json({ message: err.status ? err.message : 'Payment setup interrupted. Retry this checkout.' });
+        res.status(err.status || 503).json({ quote: err.quote, message: err.status ? err.message : 'Payment setup interrupted. Retry this checkout.' });
     }
 });
 
@@ -177,7 +173,7 @@ router.get('/my', protect, async (req, res) => {
         const orders = await Order.find({ user: req.user._id })
             .sort({ createdAt: -1 })
             .populate('items.product', 'name images');
-        res.json(orders);
+        res.json(orders.map(order => orderResponse(order)));
     } catch (err) {
         res.status(500).json({ message: 'Error fetching orders' });
     }
@@ -222,7 +218,7 @@ router.get('/:id', protect, async (req, res) => {
         const isStaff = ['admin', 'shopkeeper', 'employee'].includes(req.user.role);
         if (!isOwner && !isStaff) return res.status(403).json({ message: 'Not authorized' });
 
-        res.json(order);
+        res.json(orderResponse(order, req.user.role));
     } catch (err) {
         res.status(500).json({ message: 'Error fetching order' });
     }
@@ -242,7 +238,10 @@ router.get('/', protect, employeeAndAbove, validate(schema.orders, 'query'), asy
         if (req.query.status === 'payment-review') {
             filter.captureReview = { $type: 'string' };
         } else if (req.query.status === 'needs-refund') {
-            Object.assign(filter, { orderStatus: 'cancelled', paymentStatus: 'paid' });
+            filter.$or = [
+                { paymentStatus: 'paid', $or: [{ orderStatus: 'cancelled' }, { returnState: 'inspected' }] },
+                { paymentStatus: 'refunded', refundVerifiedAt: null },
+            ];
         } else if (req.query.status && req.query.status !== 'all') {
             filter.orderStatus = req.query.status;
         }
@@ -257,7 +256,7 @@ router.get('/', protect, employeeAndAbove, validate(schema.orders, 'query'), asy
             Order.countDocuments(filter)
         ]);
 
-        res.json({ orders, page, pages: Math.ceil(total / limit), total });
+        res.json({ orders: orders.map(order => orderResponse(order, req.user.role)), page, pages: Math.ceil(total / limit), total });
     } catch (err) {
         res.status(500).json({ message: 'Error fetching orders' });
     }
@@ -271,48 +270,76 @@ router.put('/:id/refund', protect, shopkeeperAndAbove, validate(schema.refund), 
     if (typeof reference !== 'string' || !reference.trim() || reference.trim().length > 100) {
         return res.status(400).json({ message: 'Enter the completed refund reference (up to 100 characters)' });
     }
-    const order = await Order.findOneAndUpdate(
-        { _id: req.params.id, orderStatus: 'cancelled', paymentStatus: 'paid' },
-        { $set: { paymentStatus: 'refunded', refundReference: reference.trim(), refundedAt: new Date(), refundedBy: req.user._id }, $unset: { captureReview: 1 } },
-        { returnDocument: 'after' }
-    );
+    const eligible = { _id: req.params.id, refundVerifiedAt: null,
+        $or: [{ paymentStatus: 'refunded' }, { paymentStatus: 'paid', $or: [{ orderStatus: 'cancelled' }, { returnState: 'inspected' }] }] };
+    const order = await Order.findOne(eligible);
     if (!order) return res.status(409).json({ message: 'This order has no outstanding refund' });
-    res.json(order);
+    const id = reference.trim();
+    let refund;
+    try { refund = await razorpay.refunds.fetch(id); }
+    catch (err) {
+        return res.status([400,404].includes(err.statusCode) ? 400 : 503).json({ message: 'Could not verify that refund with Razorpay' });
+    }
+    const matches = refund?.id === id && order.razorpayPaymentId && refund.payment_id === order.razorpayPaymentId
+        && refund.currency === 'INR' && refund.amount === expectedPaise(order);
+    const status = matches ? refund.status : 'mismatch';
+    if (status !== 'processed') {
+        await Order.updateOne(eligible, { refundCheck: { reference: id, status: status || 'unknown' } });
+        return res.status(409).json({ message: 'Refund verification: ' + (status || 'unknown') });
+    }
+    const updated = await Order.findOneAndUpdate({ ...eligible, razorpayPaymentId: order.razorpayPaymentId },
+        { $set: { paymentStatus: 'refunded', refundReference: id, refundVerifiedAt: new Date(),
+            refundedAt: order.refundedAt || new Date(), refundedBy: req.user._id },
+            $unset: { captureReview: 1, refundCheck: 1 } }, { returnDocument: 'after' });
+    if (!updated) return res.status(409).json({ message: 'Refund already verified or order changed' });
+    res.json(orderResponse(updated, req.user.role));
+});
+
+router.put('/:id/return', protect, shopkeeperAndAbove, validate(schema.openReturn), async (req, res) => {
+    const order = await Order.findOneAndUpdate({ _id: req.params.id, orderStatus: 'delivered', paymentStatus: 'paid', returnState: null },
+        { returnState: 'awaiting-return', returnReason: req.body.reason.trim() }, { returnDocument: 'after' });
+    if (!order) return res.status(409).json({ message: 'This order cannot start another return' });
+    res.json(orderResponse(order, req.user.role));
+});
+
+router.put('/:id/return/inspection', protect, shopkeeperAndAbove, validate(schema.inspectReturn), async (req, res) => {
+    const order = await mongoose.connection.transaction(async session => {
+        const order = await Order.findById(req.params.id).session(session);
+        if (!order) throw orderError(404, 'Order not found');
+        await inspectReturn(order, req.body, req.user._id, session);
+        return order.save({ session });
+    });
+    res.json(orderResponse(order, req.user.role));
 });
 
 router.put('/:id/status', protect, employeeAndAbove, validate(schema.status), async (req, res) => {
     const { orderStatus, trackingNumber } = req.body;
-    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-
-    if (!validStatuses.includes(orderStatus)) {
-        return res.status(400).json({ message: 'Invalid status' });
-    }
-
+    let changed;
     try {
         const order = await mongoose.connection.transaction(async session => {
             const order = await Order.findById(req.params.id).session(session);
             if (!order) throw orderError(404, 'Order not found');
-            if (order.orderStatus === 'cancelled' && orderStatus !== 'cancelled') {
-                throw orderError(409, 'A cancelled order cannot be reopened');
-            }
-            if (order.paymentStatus !== 'paid' && !['pending', 'cancelled'].includes(orderStatus)) {
-                throw orderError(409, 'Payment required before fulfillment');
+            changed = order.orderStatus !== orderStatus;
+            if (!changed) return order;
+            if (!allowedStatuses(order, req.user.role).includes(orderStatus)) throw orderError(409, 'This status change is unavailable');
+            if (orderStatus === 'cancelled' && !req.body.cancelReason?.trim()) throw orderError(400, 'Enter a cancellation reason');
+            if (orderStatus === 'shipped') order.shippedAt ||= new Date();
+            if (orderStatus === 'delivered') order.deliveredAt ||= new Date();
+            if (trackingNumber && orderStatus === 'shipped') order.trackingNumber = trackingNumber;
+            if (orderStatus === 'cancelled') {
+                if (order.paymentStatus === 'paid' && order.orderStatus !== 'pending') await cancelSoldStock(order, session);
+                else await releaseReservation(order, session);
+                order.cancelledAt ||= new Date();
+                order.cancelReason = req.body.cancelReason.trim();
             }
             order.orderStatus = orderStatus;
-            if (trackingNumber) order.trackingNumber = trackingNumber;
-            if (orderStatus === 'delivered') order.deliveredAt = new Date();
-            if (orderStatus === 'cancelled') {
-                await releaseReservation(order, session);
-                order.cancelledAt = new Date();
-                order.cancelReason = req.body.cancelReason || null;
-            }
             return order.save({ session });
         });
-        const buyer = await User.findById(order.user).select('name email');
+        const buyer = changed && await User.findById(order.user).select('name email');
         if (buyer) {
             await sendStatusUpdate(order, buyer.email, buyer.name).catch(() => console.error('Order status email failed', order.id));
         }
-        res.json(order);
+        res.json(orderResponse(order, req.user.role));
     } catch (err) {
         res.status(err.status || 500).json({ message: err.status ? err.message : 'Error updating order status' });
     }
@@ -334,7 +361,7 @@ router.put('/:id/cancel', protect, async (req, res) => {
             order.cancelledAt = new Date();
             return order.save({ session });
         });
-        res.json({ message: 'Order cancelled successfully', order });
+        res.json({ message: 'Order cancelled successfully', order: orderResponse(order) });
     } catch (error) {
         res.status(error.status || 500).json({ message: error.status ? error.message : 'Server error cancelling order' });
     }

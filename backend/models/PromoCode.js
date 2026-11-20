@@ -35,18 +35,9 @@ const promoCodeSchema = new mongoose.Schema({
 
     // Usage limits
     usageLimit: { type: Number, default: null },  // null = unlimited
+    reservedCount: { type: Number, default: 0 },
     usedCount:  { type: Number, default: 0 },
 }, { timestamps: true });
-
-// ── Instance method: calculate discount for a given subtotal ──
-promoCodeSchema.methods.calcDiscount = function (subtotal) {
-    if (this.discountType === 'flat') {
-        return this.discountValue;
-    }
-    // percent
-    const raw = (subtotal * this.discountValue) / 100;
-    return this.maxDiscountAmount ? Math.min(raw, this.maxDiscountAmount) : raw;
-};
 
 const PromoCode = mongoose.model('PromoCode', promoCodeSchema);
 export default PromoCode;

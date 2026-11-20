@@ -33,6 +33,7 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
     let server, base, user, token;
     const remoteOrders = new Map();
     const payments = new Map();
+    const refunds = new Map();
     let loseCreateResponse = false;
     const address = { fullName: 'Test', phone: '123', line1: 'Test', city: 'Test', state: 'Test', pincode: '123456' };
 
@@ -50,6 +51,7 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
                     return order;
                 },
             };
+            this.refunds = { fetch: async id => refunds.get(id) };
             this.payments = { fetch: async id => payments.get(id) };
         });
         await mongoose.connect(process.env.TEST_MONGO_URI, { dbName: 'charming_test_' + randomUUID() });
@@ -115,8 +117,8 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
         assert.equal(page.total, 13);
         assert.equal(page.products.length, 1);
         const headers = await staffHeaders('employee');
-        const response = await fetch(base + '/products/' + page.products[0]._id, {
-            method: 'PUT', headers, body: JSON.stringify({ stock: 0 }),
+        const response = await fetch(base + '/products/' + page.products[0]._id + '/stock', {
+            method: 'PUT', headers, body: JSON.stringify({ stock: 0, expectedStock: 1, reason: 'Counted shelf' }),
         });
         assert.equal(response.status, 200);
         const stats = await (await fetch(base + '/products/staff-summary', { headers })).json();
@@ -150,7 +152,9 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
     it('lists captured cancellations and lets staff record a completed refund once', async () => {
         const item = await product(1);
         const order = await (await checkout(item)).json();
-        await Order.updateOne({ _id: order.orderId }, { orderStatus: 'cancelled', paymentStatus: 'paid' });
+        await Order.updateOne({ _id: order.orderId }, { orderStatus: 'cancelled', paymentStatus: 'paid', razorpayPaymentId: 'pay_refund' });
+        const refund = { id: 'rfnd_test', payment_id: 'pay_refund', amount: order.amount, currency: 'INR', status: 'pending' };
+        refunds.set(refund.id, refund);
         const headers = await staffHeaders();
         const queue = () => fetch(base + '/orders?status=needs-refund', { headers }).then(r => r.json());
         assert.ok((await queue()).orders.some(o => o._id === order.orderId));
@@ -158,6 +162,13 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
             method: 'PUT', headers: h, body: JSON.stringify({ reference: 'rfnd_test' }),
         });
         assert.equal((await record(await staffHeaders('employee'))).status, 403);
+        assert.equal((await record(headers)).status, 409);
+        for (const [field,value] of [['status','failed'],['payment_id','other'],['currency','USD'],['amount',1]]) {
+            refunds.set(refund.id, { ...refund, status: 'processed', [field]: value });
+            assert.equal((await record(headers)).status, 409);
+            assert.equal((await Order.findById(order.orderId)).paymentStatus, 'paid');
+        }
+        refunds.set(refund.id, { ...refund, status: 'processed' });
         assert.equal((await record(headers)).status, 200);
         assert.equal((await record(headers)).status, 409);
         assert.ok(!(await queue()).orders.some(o => o._id === order.orderId));
@@ -185,9 +196,9 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
         await deliverRestockAlerts();
         assert.equal(mail.callCount(), before);
         const staff = await staffHeaders('employee');
-        const update = () => fetch(path, { method: 'PUT', headers: staff, body: JSON.stringify({ stock: 4 }) });
-        assert.equal((await update()).status, 200);
-        assert.equal((await update()).status, 200);
+        const update = expectedStock => fetch(path + '/stock', { method: 'PUT', headers: staff, body: JSON.stringify({ stock: 4, expectedStock, reason: 'Stocktake' }) });
+        assert.equal((await update(1)).status, 200);
+        assert.equal((await update(4)).status, 200);
         await Promise.all([deliverRestockAlerts(), deliverRestockAlerts()]);
         await deliverRestockAlerts();
         assert.equal(mail.callCount(), before + 1);
@@ -200,7 +211,7 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
         const url = base + '/products/' + item.id;
         const headers = { authorization: 'Bearer ' + token };
         const staff = await staffHeaders('employee');
-        const restock = () => fetch(url, { method: 'PUT', headers: staff, body: JSON.stringify({ stock: 1 }) });
+        const restock = () => fetch(url + '/stock', { method: 'PUT', headers: staff, body: JSON.stringify({ stock: 1, expectedStock: 0, reason: 'Delivery' }) });
         await fetch(url + '/restock-alert', { method: 'PUT', headers });
         assert.equal((await restock()).status, 200);
         await checkout(item);
@@ -653,6 +664,150 @@ describe('account verification and checkout', { skip: !process.env.TEST_MONGO_UR
         row.amount += 10;
         await reconcileDay(provider, dated);
         assert.match((await ReconciliationCase.findById('settlement:' + captured.id)).reason, /amount or currency/);
+    });
+
+    it('limits employee writes to stock, detects intervening sales and audits the accepted correction', async () => {
+        const item = await product(5);
+        const headers = await staffHeaders('employee');
+        const url = base + '/products/' + item.id;
+        const edit = (suffix, body) => fetch(url + suffix, { method: 'PUT', headers, body: JSON.stringify(body) });
+        assert.equal((await edit('', { price: 500 })).status, 403);
+        assert.equal((await edit('/stock', { stock: 5, expectedStock: 5, reason: 'Count', price: 500 })).status, 400);
+        await checkout(item);
+        assert.equal((await edit('/stock', { stock: 6, expectedStock: 5, reason: 'Count' })).status, 409);
+        assert.equal((await edit('/stock', { stock: 6, expectedStock: 4 })).status, 400);
+        assert.equal((await edit('/stock', { stock: 6, expectedStock: 4, reason: 'Two received' })).status, 200);
+        const audit = await mongoose.model('StockCorrection').findOne({ product: item.id });
+        assert.deepEqual([audit.before, audit.after, audit.reason], [4, 6, 'Two received']);
+        assert.ok(audit.staff);
+    });
+
+    it('reserves the final promo use once, releases it on expiry and keeps it used after paid cancellation', async () => {
+        const item = await product(5);
+        const promo = await PromoCode.create({ code: 'LASTUSE', discountType: 'flat', discountValue: 8, usageLimit: 1 });
+        const attempts = await Promise.all([checkout(item, promo.code), checkout(item, promo.code)]);
+        assert.equal(attempts.filter(r => r.status === 201).length, 1);
+        assert.equal((await Product.findById(item.id)).stock, 4);
+        const winner = await attempts.find(r => r.status === 201).json();
+        assert.equal((await PromoCode.findById(promo.id)).reservedCount, 1);
+        const resume = await post('/orders/quote', { items: [{ product: item.id, quantity: 1 }], promoCode: promo.code });
+        assert.equal(resume.status, 200);
+        assert.equal((await resume.json()).total, winner.total);
+        await Order.updateOne({ _id: winner.orderId }, { reservationExpiresAt: new Date(0) });
+        await expireReservations();
+        assert.equal((await PromoCode.findById(promo.id)).reservedCount, 0);
+        const retry = await (await checkout(item, promo.code)).json();
+        const paid = payment(retry);
+        assert.equal((await webhook(paid)).status, 200);
+        assert.equal((await fetch(base + '/orders/' + retry.orderId + '/status', { method: 'PUT', headers: await staffHeaders(),
+            body: JSON.stringify({ orderStatus: 'cancelled', cancelReason: 'Customer request' }) })).status, 200);
+        const used = await PromoCode.findById(promo.id);
+        assert.deepEqual([used.reservedCount, used.usedCount], [0,1]);
+        assert.equal((await Product.findById(item.id)).stock, 5);
+        assert.notEqual((await checkout(item, promo.code)).status, 201);
+    });
+
+    it('quotes shipping boundaries and the payable floor, requiring another review after a price change', async () => {
+        const item = await product(2), items = [{ product: item.id, quantity: 1 }];
+        item.price = 499.99;
+        await item.save();
+        const quote = async promoCode => (await post('/orders/quote', { items, promoCode })).json();
+        const first = await quote();
+        assert.deepEqual([first.subtotal, first.deliveryFee, first.total], [499.99, 50, 549.99]);
+        item.price = 500;
+        await item.save();
+        const body = { items, shippingAddress: address, quoteId: first.quoteId, attemptId: randomUUID() };
+        const stale = await post('/orders/create-payment', body);
+        assert.equal(stale.status, 409);
+        const { quote: changed } = await stale.json();
+        assert.deepEqual([changed.subtotal, changed.deliveryFee, changed.total], [500,0,500]);
+        assert.equal((await Product.findById(item.id)).stock, 2);
+        const accepted = await (await post('/orders/create-payment', { ...body, quoteId: changed.quoteId })).json();
+        assert.equal(accepted.amount, 50000);
+        const promo = await PromoCode.create({ code: 'COVERALL', discountType: 'flat', discountValue: 5000 });
+        const minimum = await quote(promo.code);
+        assert.deepEqual([minimum.total, minimum.discount], [1,499]);
+        const result = await (await post('/orders/create-payment', { ...body, attemptId: randomUUID(), promoCode: promo.code, quoteId: minimum.quoteId })).json();
+        assert.equal(result.amount, 100);
+    });
+
+    it('serves explicit customer, staff and admin fields without payment signatures or account secrets', async () => {
+        const item = await product(2);
+        const order = await (await checkout(item)).json();
+        await Order.updateOne({ _id: order.orderId }, { razorpaySignature: 'internal-signature', authorizedPaymentId: 'internal-authorization',
+            captureReview: 'For staff', refundedBy: user._id, refundCheck: { reference: 'test', status: 'pending' } });
+        const customer = { authorization: 'Bearer ' + token }, employee = await staffHeaders('employee');
+        const manager = await staffHeaders(), admin = await staffHeaders('admin');
+        const get = async (path, headers) => (await fetch(base + path, { headers })).json();
+        const keys = data => Object.keys(data).sort();
+        assert.deepEqual(keys(await get('/users/profile', customer)), ['_id','name','email','role','addresses','pendingEmail'].sort());
+        assert.deepEqual(keys(await get('/users/' + user.id, admin)), ['_id','name','email','role','isActive','isVerified','createdAt'].sort());
+        const path = '/orders/' + order.orderId;
+        const buyer = await get(path, customer);
+        const common = ['_id','createdAt','orderStatus','paymentStatus','paymentMethod','paidAt','deliveredAt','cancelledAt',
+            'trackingNumber','cancelReason','subtotal','deliveryFee','discount','total','promoCode','shippingAddress','items',
+            'paymentUnderReview','paymentAuthorized'];
+        assert.deepEqual(keys(buyer), common.sort());
+        assert.equal(buyer.paymentAuthorized, true);
+        assert.deepEqual(keys(buyer.items[0]), ['name','price','product','quantity']);
+        const staffFields = [...common,'user','allowedStatuses'];
+        assert.deepEqual(keys(await get(path, employee)), staffFields.sort());
+        const managerFields = [...staffFields,'razorpayOrderId','razorpayPaymentId','captureReview','refundCheck'];
+        assert.deepEqual(keys(await get(path, manager)), managerFields.sort());
+        assert.deepEqual(keys(await get(path, admin)), [...managerFields,'refundedBy'].sort());
+    });
+
+    it('preserves fulfillment dates and restores only inspected sellable units once', async () => {
+        const item = await product(5);
+        const order = await (await post('/orders/create-payment', { items: [{ product: item.id, quantity: 3 }],
+            shippingAddress: address, attemptId: randomUUID() })).json();
+        assert.equal((await webhook(payment(order))).status, 200);
+        const manager = await staffHeaders(), employee = await staffHeaders('employee');
+        const change = (suffix, body, headers = manager) => fetch(base + '/orders/' + order.orderId + suffix,
+            { method: 'PUT', headers, body: JSON.stringify(body) });
+        const status = (orderStatus, headers, extra) => change('/status', { orderStatus, ...extra }, headers);
+        assert.equal((await status('delivered')).status, 409);
+        assert.equal((await status('cancelled', manager)).status, 400);
+        assert.equal((await status('cancelled', employee, { cancelReason: 'Request' })).status, 409);
+        const shipped = await (await status('shipped', employee, { trackingNumber: 'TRACK-1' })).json();
+        assert.ok(shipped.shippedAt);
+        const delivered = await (await status('delivered', employee)).json();
+        assert.equal(delivered.shippedAt, shipped.shippedAt);
+        assert.ok(delivered.deliveredAt);
+        assert.equal((await (await status('delivered')).json()).deliveredAt, delivered.deliveredAt);
+        assert.equal((await status('processing')).status, 409);
+        assert.equal((await change('/return', { reason: 'Customer return' })).status, 200);
+        assert.equal((await Product.findById(item.id)).stock, 2);
+        const inspect = (sellable, damaged) => change('/return/inspection', { line: 0, sellable, damaged, reason: 'Checked boxes' });
+        assert.equal((await inspect(1,0)).status, 200);
+        assert.equal((await inspect(1,0)).status, 200);
+        assert.equal((await inspect(4,0)).status, 400);
+        await Promise.all([inspect(2,1), inspect(2,1)]);
+        assert.equal((await Product.findById(item.id)).stock, 4);
+        const final = await Order.findById(order.orderId);
+        assert.equal(final.returnState, 'inspected');
+        assert.equal(final.returnInspections.length, 2);
+        assert.equal(final.orderStatus, 'delivered');
+    });
+
+    it('keeps in-transit units out of stock after cancellation and records damaged returns without restocking them', async () => {
+        const item = await product(1);
+        const order = await (await checkout(item)).json();
+        assert.equal((await webhook(payment(order))).status, 200);
+        const headers = await staffHeaders();
+        const edit = (suffix, body) => fetch(base + '/orders/' + order.orderId + suffix, {
+            method: 'PUT', headers, body: JSON.stringify(body),
+        });
+        await edit('/status', { orderStatus: 'shipped' });
+        const response = await edit('/status', { orderStatus: 'cancelled', cancelReason: 'Delivery refused' });
+        assert.equal(response.status, 200);
+        const cancelled = await response.json();
+        assert.equal(cancelled.returnState, 'awaiting-return');
+        const again = await (await edit('/status', { orderStatus: 'cancelled', cancelReason: 'Retry' })).json();
+        assert.equal(again.cancelledAt, cancelled.cancelledAt);
+        assert.equal(again.cancelReason, 'Delivery refused');
+        assert.equal((await edit('/return/inspection', { line: 0, sellable: 0, damaged: 1, reason: 'Broken seal' })).status, 200);
+        assert.equal((await Product.findById(item.id)).stock, 0);
     });
 
     it('keeps profile traffic independent of the authentication rate limit', async () => {

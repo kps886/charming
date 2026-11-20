@@ -3,7 +3,8 @@ import express from 'express';
 import { schema, validate, validateIds, parseProduct } from '../middleware/validation.js';
 const router = express.Router();
 validateIds(router, ["id","reviewId"]);
-import { queueRestockAlerts, RestockAlert } from '../utils/restockAlerts.js';
+import { correctStock } from '../utils/stockCorrection.js';
+import { RestockAlert } from '../utils/restockAlerts.js';
 import Product from '../models/Product.js';
 import { protect, shopkeeperAndAbove, employeeAndAbove } from '../middleware/authMiddleware.js';
 import upload, { storedAssets, uploadImages, queueImageDeletion } from '../middleware/uploadMiddleware.js';
@@ -148,14 +149,26 @@ router.delete('/:id/restock-alert', protect, async (req, res) => {
     res.json({ subscribed: false });
 });
 
-router.put('/:id', protect, employeeAndAbove, parseProduct(upload, schema.productEdit), async (req, res) => {
+router.put('/:id/stock', protect, employeeAndAbove, validate(schema.stockCorrection), async (req, res) => {
+    const stock = await mongoose.connection.transaction(async session => {
+        const product = await Product.findById(req.params.id).select('+restockSubscribers').session(session);
+        if (!product) return null;
+        await correctStock(product, req.body, req.user._id, session);
+        await product.save({ session });
+        return product.stock;
+    });
+    if (stock === null) return res.status(404).json({ message: 'Product not found' });
+    res.json({ stock });
+});
+
+router.put('/:id', protect, shopkeeperAndAbove, parseProduct(upload, schema.productEdit), async (req, res) => {
     const assets = [];
     try {
         await uploadImages(req.files, assets);
         const updatedProduct = await mongoose.connection.transaction(async session => {
             const product = await Product.findById(req.params.id).select('+restockSubscribers').session(session);
             if (!product) return null;
-            const previousStock = product.stock;
+
 
             const { name, description, price, category, stock, tags, existingImages } = req.body;
 
@@ -173,17 +186,12 @@ router.put('/:id', protect, employeeAndAbove, parseProduct(upload, schema.produc
             if (description !== undefined) product.description = description;
             if (price !== undefined) product.price = Number(price);
             if (category !== undefined) product.category = category;
-            if (stock !== undefined) {
-                const quantity = Number(stock);
-                if (!Number.isSafeInteger(quantity) || quantity < 0 || stock === '') throw new Error('Enter a non-negative whole stock quantity');
-                product.stock = quantity;
-            }
+            if (stock !== undefined) await correctStock(product, req.body, req.user._id, session);
 
             if (tags !== undefined) {
                 product.tags = tags.split(',').map(tag => tag.trim()).filter(Boolean);
             }
 
-            if (product.stock > previousStock) await queueRestockAlerts(product, session);
             await product.save({ session });
             const response = product.toObject();
             delete response.restockSubscribers;
@@ -196,7 +204,7 @@ router.put('/:id', protect, employeeAndAbove, parseProduct(upload, schema.produc
         res.json(updatedProduct);
     } catch (error) {
         await queueImageDeletion(assets.map(a => a.publicId));
-        res.status(400).json({ message: error.message || 'Error updating product' });
+        res.status(error.status || 400).json({ message: error.message || 'Error updating product' });
     }
 });
 

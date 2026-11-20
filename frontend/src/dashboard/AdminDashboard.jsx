@@ -1,4 +1,5 @@
 import ReconciliationQueue from './ReconciliationQueue';
+import ReturnInspection from './ReturnInspection';
 import RefundRecord from './RefundRecord';
 import React, { useState, useEffect, useCallback } from 'react';
 import api from './../api';
@@ -257,6 +258,7 @@ const OrdersPanel = () => {
             await api.put(`/api/orders/${orderId}/status`, {
                 orderStatus: edit.status,
                 trackingNumber: edit.tracking || undefined,
+                cancelReason: edit.status === 'cancelled' ? edit.reason : undefined,
             });
             toast.success('Order status updated');
             setStatusEdit(prev => { const n = { ...prev }; delete n[orderId]; return n; });
@@ -333,6 +335,7 @@ const OrdersPanel = () => {
                             {expanded === order._id && (
                                 <div className="border-t border-border-color p-4 space-y-5">
                                     {order.captureReview && <p>{order.captureReview} · Payment {order.razorpayPaymentId}</p>}
+                                    <ReturnInspection order={order} refresh={fetchOrders} />
                                     <RefundRecord order={order} onRecorded={fetchOrders} />
                                     {/* Items */}
                                     <div>
@@ -433,10 +436,15 @@ const OrdersPanel = () => {
                                                         border-border-color rounded text-sm
                                                         focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                                     >
-                                                        {STATUSES.map(s => (
+                                                        {[order.orderStatus, ...(order.allowedStatuses || [])].map(s => (
                                                             <option key={s} value={s} className="capitalize">{s}</option>
                                                         ))}
                                                     </select>
+                                                    {statusEdit[order._id]?.status === 'cancelled' && <input
+                                                        aria-label="Cancellation reason" placeholder="Cancellation reason" maxLength={500}
+                                                        value={statusEdit[order._id]?.reason || ''} onChange={e => setStatusEdit(prev => ({
+                                                            ...prev, [order._id]: { ...prev[order._id], reason: e.target.value }
+                                                        }))} />}
                                                     <input
                                                         type="text"
                                                         placeholder="Tracking number (optional)"
@@ -454,7 +462,7 @@ const OrdersPanel = () => {
                                                     />
                                                     <button
                                                         onClick={() => handleUpdateStatus(order._id)}
-                                                        disabled={updating === order._id}
+                                                        disabled={updating === order._id || (statusEdit[order._id]?.status === 'cancelled' && !statusEdit[order._id]?.reason?.trim())}
                                                         className="px-5 py-2 bg-accent-gold text-primary-bg
                                                         font-bold text-sm hover:bg-yellow-500
                                                         transition-colors disabled:opacity-50 rounded"

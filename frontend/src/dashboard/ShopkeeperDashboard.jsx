@@ -1,4 +1,5 @@
 import ReconciliationQueue from './ReconciliationQueue';
+import ReturnInspection from './ReturnInspection';
 import RefundRecord from './RefundRecord';
 import useInventoryPage from './useInventoryPage';
 import InventoryPages from './InventoryPages';
@@ -175,6 +176,7 @@ const OrdersPanel = ({ onChange }) => {
             await api.put(`/api/orders/${orderId}/status`, {
                 orderStatus: edit.status,
                 trackingNumber: edit.tracking || undefined,
+                cancelReason: edit.status === 'cancelled' ? edit.reason : undefined,
             });
             toast.success('Order updated successfully');
             setStatusEdit(prev => { const n = { ...prev }; delete n[orderId]; return n; });
@@ -245,6 +247,7 @@ const OrdersPanel = ({ onChange }) => {
                             {expanded === order._id && (
                                 <div className="border-t border-border-color p-4 space-y-4">
                                     {order.captureReview && <p>{order.captureReview} · Payment {order.razorpayPaymentId}</p>}
+                                    <ReturnInspection order={order} refresh={fetchOrders} />
                                     <RefundRecord order={order} onRecorded={fetchOrders} />
                                     <div className="space-y-2">
                                         {order.items.map((item, i) => (
@@ -296,10 +299,15 @@ const OrdersPanel = ({ onChange }) => {
                                                         border-border-color rounded text-sm
                                                         focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10"
                                                     >
-                                                        {STATUSES.map(s => (
+                                                        {[order.orderStatus, ...(order.allowedStatuses || [])].map(s => (
                                                             <option key={s} value={s} className="capitalize">{s}</option>
                                                         ))}
                                                     </select>
+                                                    {statusEdit[order._id]?.status === 'cancelled' && <input
+                                                        aria-label="Cancellation reason" placeholder="Cancellation reason" maxLength={500}
+                                                        value={statusEdit[order._id]?.reason || ''} onChange={e => setStatusEdit(prev => ({
+                                                            ...prev, [order._id]: { ...prev[order._id], reason: e.target.value }
+                                                        }))} />}
                                                     <input
                                                         type="text"
                                                         placeholder="Tracking number (optional)"
@@ -314,7 +322,7 @@ const OrdersPanel = ({ onChange }) => {
                                                     />
                                                     <button
                                                         onClick={() => handleUpdateStatus(order._id)}
-                                                        disabled={updating === order._id}
+                                                        disabled={updating === order._id || (statusEdit[order._id]?.status === 'cancelled' && !statusEdit[order._id]?.reason?.trim())}
                                                         className="px-5 py-2 bg-accent-gold text-primary-bg
                                                         font-bold text-sm hover:bg-yellow-500 transition-colors
                                                         disabled:opacity-50 rounded"
@@ -370,7 +378,13 @@ const ProductsPanel = ({ user, onChange }) => {
         formData.append('description', form.description);
         formData.append('price', parseFloat(form.price));
         formData.append('category', form.category);
-        formData.append('stock', parseInt(form.stock));
+        if (!editingProduct || Number(form.stock) !== editingProduct.stock) {
+            formData.append('stock', form.stock);
+            if (editingProduct) {
+                formData.append('expectedStock', editingProduct.stock);
+                formData.append('reason', form.reason || '');
+            }
+        }
         formData.append('tags', form.tags.split(',').map(s => s.trim()).filter(Boolean).join(','));
         form.images.forEach(file => formData.append('images', file));
         if (editingProduct) formData.append('existingImages', JSON.stringify(form.existingImages));
@@ -386,7 +400,10 @@ const ProductsPanel = ({ user, onChange }) => {
                 toast.success('Product created');
             }
             setShowForm(false); fetchProducts(); onChange();
-        } catch (err) { toast.error(err.response?.data?.message || 'Error saving product'); }
+        } catch (err) {
+            if (err.response?.status === 409) { setShowForm(false); fetchProducts(); }
+            toast.error(err.response?.data?.message || 'Error saving product');
+        }
     };
 
     const handleDelete = async (id, name) => {
@@ -428,6 +445,8 @@ const ProductsPanel = ({ user, onChange }) => {
                             value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })}
                             className="p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 text-sm"
                         />
+                        {editingProduct && Number(form.stock) !== editingProduct.stock && <input required placeholder="Stock correction reason"
+                            maxLength={500} value={form.reason || ''} onChange={e => setForm({ ...form, reason: e.target.value })} />}
                         <textarea required placeholder="Description" rows={3}
                             value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
                             className="sm:col-span-2 p-2 bg-primary-bg border border-border-color rounded focus:outline-none focus:border-accent-gold focus:ring-4 focus:ring-accent-gold/10 resize-none text-sm"

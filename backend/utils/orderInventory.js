@@ -26,12 +26,32 @@ export function combineItems(items) {
     return Array.from(quantities, ([product, quantity]) => ({ product, quantity }));
 }
 
-export async function reserveOrder(fields) {
+async function holdPromo(order, session) {
+    if (!order.promoCode || order.promoHold) return true;
+    const promo = await PromoCode.findOneAndUpdate({ code: order.promoCode,
+        $or: [{ usageLimit: null }, { $expr: { $lt: [{ $add: [{ $ifNull: ['$usedCount', 0] }, { $ifNull: ['$reservedCount', 0] }] }, '$usageLimit'] } }] },
+        { $inc: { reservedCount: 1 } }, { session });
+    if (!promo) return false;
+    order.promoHold = promo._id;
+    return true;
+}
+
+async function finishPromo(order, session, used) {
+    if (!order.promoHold) return;
+    await PromoCode.updateOne({ _id: order.promoHold, reservedCount: { $gt: 0 } },
+        { $inc: { reservedCount: -1, usedCount: used ? 1 : 0 } }, { session });
+    order.promoHold = undefined;
+}
+
+export async function reserveOrder(input, pricing) {
     return mongoose.connection.transaction(async session => {
+        const fields = { ...input };
         if (fields._id) {
             const existing = await Order.findById(fields._id).select('+checkoutFingerprint').session(session);
             if (existing) return existing;
         }
+        if (pricing) Object.assign(fields, await pricing(session));
+        if (!await holdPromo(fields, session)) throw orderError(409, 'Promo code usage limit reached');
         for (const item of fields.items) {
             const result = await Product.updateOne(
                 { _id: item.product, stock: { $gte: item.quantity } },
@@ -47,6 +67,7 @@ export async function reserveOrder(fields) {
 }
 
 export async function releaseReservation(order, session) {
+    await finishPromo(order, session, false);
     if (!order.reservationExpiresAt) return;
     for (const item of order.items) {
         await Product.updateOne({ _id: item.product }, { $inc: { stock: item.quantity } }, { session });
@@ -139,7 +160,13 @@ export async function completePayment(filter, payment, signature, captureTime) {
             order.orderStatus = 'cancelled';
             order.cancelReason ||= 'Checkout expired';
             order.captureReview = 'Captured payment on cancelled order: review refund';
+        } else if (!await holdPromo(order, session)) {
+            await releaseReservation(order, session);
+            order.orderStatus = 'cancelled';
+            order.cancelReason = 'Promotion no longer available';
+            order.captureReview = 'Captured payment without an available promo use: review refund';
         } else if (!order.reservationExpiresAt && !await claimLegacyStock(order, session)) {
+            await finishPromo(order, session, false);
             order.orderStatus = 'cancelled';
             order.cancelReason = 'Stock unavailable';
             order.captureReview = 'Captured payment without available stock: review refund';
@@ -148,11 +175,12 @@ export async function completePayment(filter, payment, signature, captureTime) {
             order.orderStatus = 'processing';
             order.cancelReason = null;
             order.cancelledAt = null;
-            if (order.promoCode) {
-                await PromoCode.updateOne({ code: order.promoCode }, { $inc: { usedCount: 1 } }, { session });
-            }
+            await finishPromo(order, session, true);
         }
-        if (order.orderStatus === 'cancelled') order.cancelledAt ||= new Date();
+        if (order.orderStatus === 'cancelled') {
+            order.cancelledAt ||= new Date();
+            order.returnState = 'no-stock-deducted';
+        }
         order.paymentStatus = 'paid';
         order.razorpayPaymentId = paymentId;
         if (signature) order.razorpaySignature = signature;

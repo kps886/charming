@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from './../api'
 import { CartContext } from '../cart/cartProvider';
 import { useAuth } from '../auth/AuthContext';
-import { DELIVERY_THRESHOLD, DELIVERY_FEE } from '../config/constants';
+import useCheckoutQuote from './useCheckoutQuote';
 import { optimizeImage } from '../utils/cloudinary';
 
 // ── Razorpay script loader ────────────────────────────────────
@@ -67,7 +67,7 @@ const StepBar = ({ current }) => {
 };
 
 // ── Order summary sidebar ─────────────────────────────────────
-const OrderSummary = ({ cartItems, subtotal, deliveryFee, discount, total, promoCode }) => (
+const OrderSummary = ({ cartItems, subtotal, deliveryFee, discount, total, promoCode, remainingForFreeDelivery }) => (
     <div className="bg-secondary-bg border border-border-color p-5 sticky top-24">
         <h3 className="font-serif text-lg mb-4 pb-3 border-b border-border-color"
         >
@@ -116,9 +116,9 @@ const OrderSummary = ({ cartItems, subtotal, deliveryFee, discount, total, promo
             </div>
         </div>
 
-        {subtotal < DELIVERY_THRESHOLD && (
+        {remainingForFreeDelivery > 0 && (
             <p className="mt-3 text-xs text-text-secondary bg-primary-bg p-2 rounded">
-                💡 Add ₹{(DELIVERY_THRESHOLD - subtotal).toLocaleString('en-IN')} more for free delivery
+                💡 Add ₹{remainingForFreeDelivery.toLocaleString('en-IN')} more for free delivery
             </p>
         )}
     </div>
@@ -166,12 +166,9 @@ const CheckoutPage = () => {
     const [error, setError] = useState('');
     const [addressErrors, setAddressErrors] = useState({});
 
-    // Computed prices
-    const subtotalPaise = cartItems.reduce((sum, item) => sum + Math.round(item.price * 100) * item.qty, 0);
-    const subtotal = subtotalPaise / 100;
-    const deliveryFee = subtotal >= DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
-    const discount = promoResult?.discount || 0;
-    const total = Math.max(subtotalPaise + Math.round(deliveryFee * 100) - Math.round(discount * 100), 100) / 100;
+    const code = promoResult?.code || null;
+    const { quote, error: priceError, retry: retryPrices, reviewQuote } = useCheckoutQuote(cartItems, code);
+    const { subtotal, deliveryFee, discount, total } = quote || {};
 
     // Redirect if cart is empty
     useEffect(() => {
@@ -251,11 +248,10 @@ const CheckoutPage = () => {
         setPromoError('');
         setPromoResult(null);
         try {
-            const { data } = await api.post('/api/promo/validate', {
-                code: promoInput.trim(),
-                subtotal,
+            const { data } = await api.post('/api/orders/quote', {
+                promoCode: promoInput.trim(), items: cartItems.map(item => ({ product: item._id, quantity: item.qty })),
             });
-            setPromoResult(data);
+            setPromoResult({ code: data.promoCode, message: 'Promo applied' });
         } catch (err) {
             setPromoError(err.response?.data?.message || 'Invalid promo code');
         }
@@ -298,8 +294,9 @@ const CheckoutPage = () => {
             sessionStorage.setItem(storageKey, attemptId);
             let data;
             try {
-                ({ data } = await api.post('/api/orders/create-payment', { ...payload, attemptId }));
+                ({ data } = await api.post('/api/orders/create-payment', { ...payload, attemptId, quoteId: quote.quoteId }));
             } catch (err) {
+                if (err.response?.data?.quote) reviewQuote(err.response.data.quote);
                 if (err.response?.data?.restart) sessionStorage.removeItem(storageKey);
                 throw err;
             }
@@ -371,6 +368,11 @@ const CheckoutPage = () => {
     };
 
     // ─────────────────────────────────────────────────────────
+    if (!quote) return <main className="container mx-auto p-8">
+        <p role="status">{priceError || 'Loading checkout prices…'}</p>
+        {priceError && <button onClick={retryPrices}>Retry</button>}
+        {code && <button onClick={handleRemovePromo}>Remove promo</button>}
+    </main>;
     return (
         <div className="container mx-auto py-8 px-4 max-w-6xl">
             <h1 className="text-3xl font-serif text-center mb-8"
@@ -678,7 +680,8 @@ const CheckoutPage = () => {
                 {/* ── Right: Order summary (always visible) ── */}
                 <div className="lg:col-span-1">
                     <OrderSummary
-                        cartItems={cartItems}
+                        cartItems={cartItems.map(i => ({ ...i, price: quote.items.find(line => line.product === i._id)?.price ?? i.price }))}
+                        remainingForFreeDelivery={quote.remainingForFreeDelivery}
                         subtotal={subtotal}
                         deliveryFee={deliveryFee}
                         discount={discount}

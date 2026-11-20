@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const DELIVERY_FEE_THRESHOLD = 500;  // free shipping above this
+export const FREE_SHIPPING_SUBTOTAL = 500;
 const FLAT_DELIVERY_FEE      = 50;   // fee when below threshold
 
 const orderItemSchema = new mongoose.Schema({
@@ -9,6 +9,8 @@ const orderItemSchema = new mongoose.Schema({
     image:    { type: String },
     price:    { type: Number, required: true },
     pricePaise: Number,
+    returnedSellable: Number,
+    returnedDamaged: Number,
     quantity: { type: Number, required: true, min: 1 },
 }, { _id: false });
 
@@ -38,6 +40,7 @@ const orderSchema = new mongoose.Schema({
     total:       { type: Number, required: true },   // subtotal + deliveryFee - discount
 
     promoCode:     { type: String, default: null },
+    promoHold: { type: mongoose.Schema.Types.ObjectId, ref: 'PromoCode' },
     promoDiscount: { type: Number, default: 0 },
 
     subtotalPaise: Number,
@@ -66,6 +69,12 @@ const orderSchema = new mongoose.Schema({
     razorpayPaymentId: { type: String, default: null },
     razorpaySignature: { type: String, default: null },
     refundReference: String,
+    refundVerifiedAt: Date,
+    refundCheck: { reference: String, status: String },
+    returnState: String,
+    returnReason: String,
+    returnInspections: [{ _id: false, line: Number, sellable: Number, damaged: Number, reason: String, staff: mongoose.Schema.Types.ObjectId, at: Date }],
+    shippedAt: Date,
     refundedAt: Date,
     refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     paidAt:            { type: Date, default: null },
@@ -82,7 +91,7 @@ const orderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 orderSchema.statics.calcDeliveryFee = function (subtotal) {
-    return subtotal >= DELIVERY_FEE_THRESHOLD ? 0 : FLAT_DELIVERY_FEE;
+    return subtotal >= FREE_SHIPPING_SUBTOTAL ? 0 : FLAT_DELIVERY_FEE;
 };
 
 const Order = mongoose.model('Order', orderSchema);

@@ -48,7 +48,7 @@ export const ShippingPolicy = () => (
         <h3 className="text-lg font-bold mt-6 mb-2">1. Processing Time</h3>
         <p>All orders are processed within 1 to 3 business days. Orders are not shipped or delivered on weekends or holidays. If we are experiencing a high volume of orders, shipments may be delayed by a few days.</p>
         <h3 className="text-lg font-bold mt-6 mb-2">2. Shipping Rates & Delivery Estimates</h3>
-        <p>Shipping charges for your order will be calculated and displayed at checkout. We offer free shipping on all orders over ₹500. For orders under ₹500, a flat delivery fee of ₹50 applies. Standard delivery typically takes 3-7 business days depending on your location.</p>
+        <p>Shipping charges for your order will be calculated and displayed at checkout. We offer free shipping on orders with a merchandise subtotal of ₹500 or more before discounts. For orders under ₹500, a flat delivery fee of ₹50 applies. The minimum payable total after discounts is ₹1. Standard delivery typically takes 3-7 business days depending on your location.</p>
         <h3 className="text-lg font-bold mt-6 mb-2">3. Shipment Confirmation & Order Tracking</h3>
         <p>You will receive a Shipment Confirmation email once your order has shipped containing your tracking number(s). The tracking number will be active within 24 hours.</p>
     </LegalLayout>

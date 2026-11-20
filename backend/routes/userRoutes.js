@@ -9,6 +9,7 @@ import { queueAccountMail, deliverAccountMail } from '../utils/accountMail.js';
 import { passwordResetMessage } from '../utils/emailService.js';
 
 import { schema, validate, validateIds } from '../middleware/validation.js';
+import { adminAccountFields, profileResponse } from '../utils/responses.js';
 const router = express.Router();
 validateIds(router, ["id","addressId","productId"]);
 
@@ -164,9 +165,9 @@ router.post('/verify-otp', validate(schema.otp), async (req, res) => {
 // @route   GET /api/users/profile
 // @access  Private (all authenticated users)
 router.get('/profile', protect, async (req, res) => {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user._id).select('name email role pendingEmail addresses');
     if (user) {
-        res.json(user);
+        res.json(profileResponse(user));
     } else {
         res.status(404).json({ message: 'User not found' });
     }
@@ -275,7 +276,7 @@ router.get('/', protect, adminOnly, validate(schema.pagination, 'query'), async 
         const skip = (page - 1) * limit;
 
         const [users, total] = await Promise.all([
-            User.find({}).select('-password').sort({ createdAt: -1 }).skip(skip).limit(limit),
+            User.find({}).select(adminAccountFields).lean().sort({ createdAt: -1 }).skip(skip).limit(limit),
             User.countDocuments({})
         ]);
 
@@ -308,13 +309,7 @@ router.post('/create', protect, adminOnly, validate(schema.staff), async (req, r
 
         const user = await User.create({ name, email, password, role, isVerified: true, unverifiedExpireAt: null });
 
-        res.status(201).json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            token: generateToken(user),
-        });
+        res.status(201).json({ _id: user._id, name: user.name, email: user.email, role: user.role });
     } catch (error) {
         res.status(500).json({ message: 'Server error creating user' });
     }
@@ -325,7 +320,7 @@ router.post('/create', protect, adminOnly, validate(schema.staff), async (req, r
 // @access  Private/Admin
 router.get('/:id', protect, adminOnly, async (req, res) => {
     try {
-        const user = await User.findById(req.params.id).select('-password');
+        const user = await User.findById(req.params.id).select(adminAccountFields).lean();
         if (user) {
             res.json(user);
         } else {
